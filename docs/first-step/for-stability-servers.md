@@ -1,0 +1,16 @@
+# Best Linux Distros for Stability / Servers
+
+For server environments, critical infrastructure, or users who demand absolute reliability and long-term support, stability is paramount. These distributions prioritize tested, robust software over bleeding-edge features.
+
+| Distribution      | Base          | Key Features (for Stability/Servers)                                                                             | Best For                                                                                                    |
+| :---------------- | :------------ | :--------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------- |
+| **Debian 12 (Stable)** | Independent   | Legendary stability, vast software repository, strong community, free and open-source software, long release cycles. | Critical servers, production environments, users who prioritize stability above all else, desktop users who want a solid base. |
+| **Rocky Linux**   | RHEL          | Community-driven, 1:1 binary compatible with RHEL, excellent for enterprise use, long-term support (LTS).         | Enterprise servers, users needing a free RHEL alternative, production environments requiring commercial-grade stability. |
+| **Ubuntu Server LTS** | Debian        | Easy to use, good hardware support, cloud integration, Snap support, strong community and commercial backing.     | Web servers, cloud deployments, developers, users wanting an easy-to-manage server with long-term support.   |
+| **AlmaLinux**     | RHEL          | Community-driven, 1:1 binary compatible with RHEL, designed to be a free and stable enterprise OS.              | Enterprise servers, users migrating from CentOS Linux, production environments.                             |
+| **openSUSE Leap** | Independent   | Enterprise-grade stability, hybrid release (some rolling, some fixed), YaST for system management, Btrfs support. | Business users, developers, sysadmins who want a stable system with powerful graphical administration tools. |
+| **Fedora Server** | Independent   | Modern server features, role-based installation, relatively quick release cycle, good for testing new tech.       | Users wanting a modern, cutting-edge server OS, testing new server technologies, Fedora ecosystem users.   |
+| **CentOS Stream** | RHEL          | Upstream development branch for RHEL, provides a continuous stream of updates, stable enough for many uses.       | Developers, community contributors, users wanting to influence RHEL development, testing upcoming RHEL features. |
+| **Clear Linux**   | Independent   | Performance-optimized, stateless design, highly modular, fast boot times, excellent for specific workloads.       | Performance enthusiasts, specific workloads (e.g., containers, virtualization), users who appreciate highly optimized systems. |
+
+Choosing a distribution for stability or server use involves balancing long-term support, package freshness, and management tools. These options provide robust foundations for any critical workload.

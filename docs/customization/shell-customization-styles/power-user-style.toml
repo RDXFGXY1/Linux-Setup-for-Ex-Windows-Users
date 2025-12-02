@@ -1,0 +1,164 @@
+# Power User Style - Verbose and Informative
+
+format = """$username@$hostname$directory$git_branch$git_status$line_break$aws$gcloud$kubernetes$docker_context$terraform$python$nodejs$rust$golang$php$java$ruby$c$cpp$lua$cmd_duration$jobs$battery$status$character"""
+
+[username]
+show_always = true
+style_user = "bold green"
+style_root = "bold red"
+format = "[$user]($style)"
+
+[hostname]
+disabled = false
+format = "@[$hostname](bold blue)"
+ssh_only = false
+
+[directory]
+format = "[$path]($style)[$read_only](bold red) "
+style = "bold cyan"
+truncate_to_repo = false
+truncation_length = 3
+truncation_symbol = "…/"
+home_symbol = "~"
+
+[git_branch]
+symbol = " "
+format = "on [$symbol$branch](bold purple)"
+style = "bold purple"
+
+[git_status]
+format = '([$all_status$ahead_behind](bold yellow))'
+conflicted = "x"
+ahead = "↑${count}"
+behind = "↓${count}"
+diverged = "↕${ahead_count}↓${behind_count}"
+untracked = "?"
+stashed = "\$"
+modified = "!"
+staged = "+"
+renamed = "»"
+deleted = "✖"
+style = "bold yellow"
+
+[cmd_duration]
+disabled = false
+format = " [took $duration](bold white)"
+min_time = 500  # Show only if command takes longer than 0.5 seconds
+
+[jobs]
+disabled = false
+format = "[$symbol$number](bold blue) "
+symbol = " "
+threshold = 1
+
+[battery]
+disabled = false
+format = "[$symbol$percentage]($style) "
+full_symbol = ""
+charging_symbol = ""
+discharging_symbol = ""
+unknown_symbol = "?"
+[[battery.display]]
+threshold = 10
+style = "bold red"
+[[battery.display]]
+threshold = 30
+style = "bold yellow"
+[[battery.display]]
+threshold = 100
+style = "bold green"
+
+[status]
+disabled = false
+format = "[\[$symbol$int\]](bold red)"
+symbol = "⨉"
+pipestatus = true
+map_symbol = true
+
+[character]
+success_symbol = "[➜](bold green)"
+error_symbol = "[✖](bold red)"
+vicmd_symbol = "[❮](bold green)"
+
+# Programming Languages (Customize as needed)
+[python]
+format = " [$symbol($version)]($style)"
+symbol = "🐍"
+style = "yellow"
+
+[nodejs]
+format = " [$symbol($version)]($style)"
+symbol = "⬢"
+style = "green"
+
+[rust]
+format = " [$symbol($version)]($style)"
+symbol = "🦀"
+style = "red"
+
+[golang]
+format = " [$symbol($version)]($style)"
+symbol = "🐹"
+style = "cyan"
+
+[php]
+format = " [$symbol($version)]($style)"
+symbol = "🐘"
+style = "purple"
+
+[java]
+format = " [$symbol($version)]($style)"
+symbol = "☕"
+style = "red"
+
+[ruby]
+format = " [$symbol($version)]($style)"
+symbol = "💎"
+style = "pink"
+
+[c]
+format = " [$symbol($version)]($style)"
+symbol = "C"
+style = "blue"
+
+[cpp]
+format = " [$symbol($version)]($style)"
+symbol = "C++"
+style = "blue"
+
+[lua]
+format = " [$symbol($version)]($style)"
+symbol = "🌙"
+style = "blue"
+
+# Tools and Cloud (Customize as needed)
+[aws]
+format = "on [$symbol$region( $profile)]($style)"
+symbol = " "
+style = "bold yellow"
+
+[gcloud]
+format = "on [$symbol$project](bold red)"
+symbol = "g "
+
+[kubernetes]
+format = "at [$symbol$context](bold blue)"
+symbol = "⛵"
+
+[docker_context]
+format = "via [$symbol$context](bold blue)"
+symbol = "🐳"
+
+[terraform]
+format = "in [$symbol$workspace](bold purple)"
+symbol = " terra"
+
+# Disable unwanted modules
+[time]
+disabled = true
+
+[git_commit]
+disabled = true
+
+[git_metrics]
+disabled = true

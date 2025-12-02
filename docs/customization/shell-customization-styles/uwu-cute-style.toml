@@ -1,0 +1,217 @@
+# UwU Cute Style - Clean & Simple ♥ (FIXED v2)
+format = """
+[╭─](bold magenta)[\(◉ω◉\)](bold cyan) [$username](bold pink)[@$hostname](bold cyan) [~>](bold magenta) [$directory](bold blue)$git_branch$git_status
+[│](bold magenta)$python$nodejs$rust$golang$php$java$docker_context$cmd_duration$jobs$battery
+[╰─](bold magenta)$status$sudo$character"""
+
+## USER & SYSTEM
+
+[username]
+format = "$user"
+show_always = true
+style_user = "bold pink"
+style_root = "bold red"
+
+[hostname]
+disabled = false
+format = "$hostname"
+ssh_only = false
+style = "bold cyan"
+trim_at = "."
+
+[directory]
+format = "$path"
+style = "bold blue"
+truncate_to_repo = true
+truncation_length = 3
+truncation_symbol = ".../"
+home_symbol = "~"
+read_only = " ◈"
+read_only_style = "bold red"
+
+## GIT INFO (FIXED - Simplified)
+
+[git_branch]
+format = " [on](bold white) [$symbol$branch](bold purple)"
+symbol = "◆ "
+style = "bold purple"
+truncation_length = 20
+truncation_symbol = "…"
+
+[git_status]
+format = '([$all_status$ahead_behind](bold yellow))'
+conflicted = "⚠"
+ahead = "↑${count}"
+behind = "↓${count}"
+diverged = "↕${ahead_count}↓${behind_count}"
+untracked = "?"
+stashed = "$"
+modified = "~"
+staged = "+"
+renamed = "»"
+deleted = "x"
+style = "bold yellow"
+
+[git_state]
+format = '[\$state ](bold yellow)'
+rebase = "REBASE"
+merge = "MERGE"
+revert = "REVERT"
+cherry_pick = "PICK"
+bisect = "BISECT"
+style = "bold yellow"
+
+## STATUS & ERRORS (FIXED)
+
+[status]
+disabled = false
+format = '[\(>_<) ERR:$int ](bold red)'
+pipestatus = true
+map_symbol = true
+
+[character]
+success_symbol = "[♥>](bold pink)"
+error_symbol = "[x>](bold red)"
+
+## SYSTEM INFO (Second line)
+
+[sudo]
+disabled = false
+format = '[ [ROOT\ ] ](bold red)'
+
+[jobs]
+disabled = false
+format = '[ \[JOBS:$number\]](bold blue)'
+threshold = 1
+
+[battery]
+disabled = false
+format = '[ \[BAT:$percentage$symbol\]](bold $style)'
+full_symbol = ""
+charging_symbol = "↑"
+discharging_symbol = "↓"
+
+[[battery.display]]
+threshold = 20
+style = "red"
+
+[[battery.display]]
+threshold = 50
+style = "yellow"
+
+[[battery.display]]
+threshold = 100
+style = "green"
+
+[memory_usage]
+disabled = false
+threshold = 80
+format = '[ \[MEM:$percentage\]](bold red)'
+symbol = ""
+
+## COMMAND DURATION (Second line)
+
+[cmd_duration]
+disabled = false
+format = " [took](bold white) [$duration](bold yellow)"
+min_time = 1000
+show_milliseconds = false
+
+## PROGRAMMING LANGUAGES (Second line)
+
+[python]
+format = " [$symbol$version](bold yellow)"
+symbol = "◇py:"
+style = "bold yellow"
+
+[nodejs]
+format = " [$symbol$version](bold green)"
+symbol = "◇node:"
+style = "bold green"
+
+[rust]
+format = " [$symbol$version](bold red)"
+symbol = "◇rust:"
+style = "bold red"
+
+[golang]
+format = " [$symbol$version](bold cyan)"
+symbol = "◇go:"
+style = "bold cyan"
+
+[php]
+format = " [$symbol$version](bold purple)"
+symbol = "◇php:"
+style = "bold purple"
+
+[java]
+format = " [$symbol$version](bold red)"
+symbol = "◇java:"
+style = "bold red"
+
+[ruby]
+format = " [$symbol$version](bold pink)"
+symbol = "◇ruby:"
+style = "bold pink"
+
+[c]
+format = " [$symbol$version](bold blue)"
+symbol = "◇c:"
+style = "bold blue"
+
+[cpp]
+format = " [$symbol$version](bold blue)"
+symbol = "◇c++:"
+style = "bold blue"
+
+[lua]
+format = " [$symbol$version](bold blue)"
+symbol = "◇lua:"
+style = "bold blue"
+
+## TOOLS (Second line)
+
+[docker_context]
+format = " [$symbol$context](bold blue)"
+symbol = "◈docker:"
+style = "bold blue"
+only_with_files = true
+
+[kubernetes]
+format = " [$symbol$context](bold blue)"
+symbol = "◈k8s:"
+style = "bold blue"
+disabled = false
+
+[package]
+format = " [$symbol$version](bold cyan)"
+symbol = "◆pkg:"
+style = "bold cyan"
+disabled = false
+
+[aws]
+format = " [$symbol$region](bold yellow)"
+symbol = "◈aws:"
+style = "bold yellow"
+
+[terraform]
+format = " [$symbol$workspace](bold purple)"
+symbol = "◇tf:"
+style = "bold purple"
+disabled = false
+
+[conda]
+format = " [$symbol$environment](bold green)"
+symbol = "◈conda:"
+style = "bold green"
+
+## DISABLE EXTRAS
+
+[time]
+disabled = true
+
+[git_commit]
+disabled = true
+
+[git_metrics]
+disabled = true

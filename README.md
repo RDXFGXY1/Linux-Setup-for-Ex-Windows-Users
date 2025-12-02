@@ -11,12 +11,16 @@ A comprehensive guide for users switching from Windows to Linux. Whether you're 
 
 - [Why Switch to Linux?](#why-switch-to-linux)
 - [Getting Started](#getting-started)
-  - [Choosing a Distribution](#choosing-a-distribution)
+  - [Choosing the Right Distribution for You](./docs/first-step/README.md)
   - [Installation Guide](#installation-guide)
 - [Windows to Linux Transition](#windows-to-linux-transition)
   - [Software Alternatives](#software-alternatives)
   - [File System Differences](#file-system-differences)
-- [Tutorials](#tutorials)
+- [Troubleshooting Common Issues](./docs/troubleshooting/README.md)
+- [Gaming on Linux](./docs/gaming/README.md)
+- [Development on Linux](./docs/development/README.md)
+- [Command-Line Basics](./docs/command-line/README.md)
+- [Customization](./docs/customization/README.md)
 - [Contributing](#contributing)
 
 ---
@@ -38,53 +42,13 @@ A comprehensive guide for users switching from Windows to Linux. Whether you're 
 
 ## Getting Started
 
-### Choosing a Distribution
+### Choosing the Right Distribution for You
 
-For Windows users, we recommend starting with one of these beginner-friendly distributions:
+The "best" Linux distribution depends entirely on your needs. We've created a detailed guide to help you choose based on your intended use case, whether it's for daily tasks, software development, gaming, or security.
 
-#### 1. **Linux Mint** (Highly Recommended for Beginners)
-- **Why:** Most Windows-like interface, easy to learn
-- **Desktop:** Cinnamon (similar to Windows 7/10)
-- **Best for:** Users who want minimal learning curve
-- **Download:** [linuxmint.com](https://linuxmint.com/)
+➡️ [**See our complete guide to choosing the right distro.**](./docs/choosing-a-distro/README.md)
 
-#### 2. **Ubuntu**
-- **Why:** Largest community, most documentation available
-- **Desktop:** GNOME (modern, touch-friendly)
-- **Best for:** Users who want maximum compatibility
-- **Download:** [ubuntu.com](https://ubuntu.com/)
-
-#### 3. **Pop!_OS**
-- **Why:** Great for gaming, NVIDIA support out-of-box
-- **Desktop:** GNOME (customized)
-- **Best for:** Gamers and content creators
-- **Download:** [pop.system76.com](https://pop.system76.com/)
-
-#### 4. **Zorin OS**
-- **Why:** Beautiful interface, Windows-like layout options
-- **Desktop:** GNOME (heavily customized)
-- **Best for:** Users who value aesthetics
-- **Download:** [zorin.com](https://zorin.com/os/)
-
-#### 5. **Manjaro** (For Adventurous Users)
-- **Why:** Rolling release, always latest software
-- **Desktop:** KDE, XFCE, or GNOME
-- **Best for:** Users comfortable with more control
-- **Download:** [manjaro.org](https://manjaro.org/)
-
-### System Requirements Comparison
-
-| Distribution | Minimum RAM | Minimum Storage | Desktop Options |
-|--------------|-------------|-----------------|-----------------|
-| Linux Mint   | 2 GB        | 20 GB          | Cinnamon, MATE, Xfce |
-| Ubuntu       | 4 GB        | 25 GB          | GNOME |
-| Pop!_OS      | 4 GB        | 20 GB          | GNOME |
-| Zorin OS     | 2 GB        | 25 GB          | GNOME |
-| Manjaro      | 2 GB        | 30 GB          | KDE, Xfce, GNOME |
-
----
-
-## Installation Guide
+### Installation Guide
 
 ### Step 1: Create a Bootable USB
 
@@ -177,27 +141,7 @@ Recommended backup locations:
 - `/opt` - Optional software
 - `/mnt` - Mount points for drives
 
-## Tutorials
 
-Detailed step-by-step guides for common tasks:
-
-### Basic Tutorials
-- [Terminal Customization with Starship](./tutorials/terminal-customization.md)
-- [Installing Software on Linux](./tutorials/software-installation.md)
-- [Setting Up Development Environment](./tutorials/dev-environment.md)
-- [Customizing Your Desktop](./tutorials/desktop-customization.md)
-
-### Intermediate Tutorials
-- [Dual Boot Setup (Windows + Linux)](./tutorials/dual-boot.md)
-- [Gaming on Linux](./tutorials/gaming-setup.md)
-- [Setting Up Wine for Windows Apps](./tutorials/wine-setup.md)
-- [Backup and Recovery](./tutorials/backup-recovery.md)
-
-### Advanced Tutorials
-- [Kernel Compilation](./tutorials/kernel-compilation.md)
-- [System Optimization](./tutorials/system-optimization.md)
-- [Server Setup](./tutorials/server-setup.md)
-- [Security Hardening](./tutorials/security-hardening.md)
 
 ---
 

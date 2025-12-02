@@ -1,0 +1,110 @@
+# Dracula Style - Based on the popular Dracula color theme
+
+format = """
+[](fg:#44475a)\
+$username
+[](bg:#bd93f9 fg:#44475a)
+$directory
+[](fg:#bd93f9 bg:#ffb86c)
+$git_branch
+$git_status
+[](fg:#ffb86c bg:#ff79c6)
+$c$elixir$elm$golang$haskell$java$julia$nodejs$nim$rust$scala
+[](fg:#ff79c6 bg:#8be9fd)
+$docker_context
+[](fg:#8be9fd bg:#f1fa8c)
+$time
+[](fg:#f1fa8c)
+$line_break$character"""
+
+[username]
+show_always = true
+style_user = "bg:#44475a"
+style_root = "bg:#44475a"
+format = "[$user]($style)"
+
+[directory]
+style = "bg:#bd93f9"
+format = "[ $path ]($style)"
+truncate_to_repo = false
+truncation_length = 3
+truncation_symbol = "…/"
+
+[git_branch]
+style = "bg:#ffb86c"
+format = "[$symbol$branch]($style)"
+
+[git_status]
+style = "bg:#ffb86c"
+format = '([$all_status$ahead_behind]($style))'
+
+[c]
+symbol = " "
+style = "bg:#ff79c6"
+format = '[ $symbol ($version) ]($style)'
+
+[docker_context]
+symbol = " "
+style = "bg:#8be9fd"
+format = '[ $symbol $context ]($style)'
+
+[elixir]
+symbol = " "
+style = "bg:#ff79c6"
+format = '[ $symbol ($version) ]($style)'
+
+[elm]
+symbol = " "
+style = "bg:#ff79c6"
+format = '[ $symbol ($version) ]($style)'
+
+[golang]
+symbol = " "
+style = "bg:#ff79c6"
+format = '[ $symbol ($version) ]($style)'
+
+[haskell]
+symbol = " "
+style = "bg:#ff79c6"
+format = '[ $symbol ($version) ]($style)'
+
+[java]
+symbol = " "
+style = "bg:#ff79c6"
+format = '[ $symbol ($version) ]($style)'
+
+[julia]
+symbol = " "
+style = "bg:#ff79c6"
+format = '[ $symbol ($version) ]($style)'
+
+[nodejs]
+symbol = " "
+style = "bg:#ff79c6"
+format = '[ $symbol ($version) ]($style)'
+
+[nim]
+symbol = " "
+style = "bg:#ff79c6"
+format = '[ $symbol ($version) ]($style)'
+
+[rust]
+symbol = " "
+style = "bg:#ff79c6"
+format = '[ $symbol ($version) ]($style)'
+
+[scala]
+symbol = " "
+style = "bg:#ff79c6"
+format = '[ $symbol ($version) ]($style)'
+
+[time]
+disabled = false
+time_format = "%R"
+style = "bg:#f1fa8c"
+format = '[ ♥ $time ]($style)'
+
+[character]
+success_symbol = "[➜](bold green)"
+error_symbol = "[➜](bold red)"
+vimcmd_symbol = "[❮](bold green)"

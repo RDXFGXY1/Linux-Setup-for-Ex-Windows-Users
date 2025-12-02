@@ -1,0 +1,58 @@
+# Classic Style - Simple and Familiar
+# This style mimics a traditional bash prompt but enhances it with Starship's context-aware features.
+
+format = """$directory$git_branch$git_status$line_break$character"""
+
+[directory]
+style = "bold blue"
+truncate_to_repo = false
+truncation_length = 3
+truncation_symbol = "…/"
+home_symbol = "~"
+
+[git_branch]
+symbol = " "
+format = "on [$symbol$branch]($style) "
+style = "bold purple"
+
+[git_status]
+format = '([$all_status$ahead_behind](bold yellow))'
+conflicted = "x"
+ahead = "↑${count}"
+behind = "↓${count}"
+untracked = "?"
+stashed = "\$"
+modified = "!"
+staged = "+"
+renamed = "»"
+deleted = "✖"
+style = "bold yellow"
+
+[character]
+success_symbol = "[>](bold green)"
+error_symbol = "[>](bold red)"
+vicmd_symbol = "[<](bold green)"
+
+# Disable all other modules for a clean look
+[username]
+disabled = true
+[hostname]
+disabled = true
+[time]
+disabled = true
+[cmd_duration]
+disabled = true
+[battery]
+disabled = true
+[python]
+disabled = true
+[nodejs]
+disabled = true
+[rust]
+disabled = true
+[golang]
+disabled = true
+[java]
+disabled = true
+[docker_context]
+disabled = true
