@@ -6,4 +6,4 @@ These distributions are known for their access to the latest software via the of
 
 ## Tool Setup Guides
 
-*   [**VS Code & VSCodium Setup**](./vscode-codium-setup.md)
+*   [**IDE Setup (VS Code & VSCodium)**](./ide-setup.md)
