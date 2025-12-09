@@ -21,6 +21,7 @@ A comprehensive guide for users switching from Windows to Linux. Whether you're 
 - [Development on Linux](./docs/development/README.md)
 - [Command-Line Basics](./docs/command-line/README.md)
 - [Customization](./docs/customization/README.md)
+- [Scripts and Tools](#scripts-and-tools)
 - [Contributing](#contributing)
 
 ---
@@ -141,7 +142,15 @@ Recommended backup locations:
 - `/opt` - Optional software
 - `/mnt` - Mount points for drives
 
+---
 
+## Scripts and Tools
+
+### `pkgup` - Package Updater
+
+A simple, modular command-line tool for updating self-contained applications that aren't managed by your system's main package manager.
+
+➡️ [**Learn more about `pkgup`.**](./Scripts/%5Bpkgup%5D%20package%20update/README.md)
 
 ---
 
