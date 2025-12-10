@@ -1,0 +1,24 @@
+name: Test pkgup script
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test-script:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Make pkgup executable
+        run: chmod +x "Scripts/[pkgup] package update/install.sh"
+
+      - name: Validate bash syntax
+        run: bash -n "Scripts/[pkgup] package update/install.sh"
+
+      - name: Run pkgup in dry-run mode
+        run: |
+          bash "Scripts/[pkgup] package update/install.sh" --dry-run || true
