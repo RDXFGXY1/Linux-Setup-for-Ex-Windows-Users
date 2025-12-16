@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ============================================
-#   UNINSTALL PKGUP
-#   Removes all pkgup files
+#   UNINSTALL orion
+#   Removes all orion files
 # ============================================
 set -euo pipefail
 
-INSTALL_DIR="/usr/local/lib/pkgup"
+INSTALL_DIR="/usr/local/lib/orion"
 BIN_DIR="/usr/local/bin"
-COMMAND_NAME="pkgup"
+COMMAND_NAME="orion"
 
 echo "Uninstalling Package Update System..."
 
@@ -40,5 +40,5 @@ if [ -f "/var/log/update-discord.log" ]; then
 fi
 
 echo ""
-echo "pkgup has been uninstalled."
+echo "orion has been uninstalled."
 echo "Note: This script does not remove the applications themselves (e.g., Discord), only the updater scripts."

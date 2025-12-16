@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================
-#   PKGUP INSTALLER - GITHUB SYNC ONLY
+#   orion INSTALLER - GITHUB SYNC ONLY
 #   Downloads everything from GitHub
 #   Author: Ayoub (RDXFGXY1)
 #   Version: 2.0
@@ -10,15 +10,15 @@ set -euo pipefail
 # -------------------------
 #  CONFIGURATION
 # -------------------------
-INSTALL_DIR="/usr/local/lib/pkgup"
+INSTALL_DIR="/usr/local/lib/orion"
 BIN_DIR="/usr/local/bin"
-COMMAND_NAME="pkgup"
+COMMAND_NAME="orion"
 
 # GitHub repository details
 GITHUB_USER="RDXFGXY1"
 GITHUB_REPO="Linux-Setup-for-Ex-Windows-Users"
 GITHUB_BRANCH="main"
-BASE_PATH="Scripts/%5Bpkgup%5D%20package%20update"
+BASE_PATH="Scripts"
 
 # GitHub URLs
 GITHUB_API="https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents"
@@ -45,7 +45,7 @@ print_header() {
   cat << "EOF"
   ╔═══════════════════════════════════════════════╗
   ║                                               ║
-  ║           📦  PKGUP INSTALLER  📦            ║
+  ║           📦  orion INSTALLER  📦            ║
   ║                                               ║
   ║      Package Update System for Linux         ║
   ║         Everything from GitHub!              ║
@@ -165,9 +165,9 @@ download_file() {
 # -------------------------
 
 install_main_command() {
-  log_info "Installing main pkgup command..."
+  log_info "Installing main orion command..."
   
-  local remote_file="${BASE_PATH}/pkgup"
+  local remote_file="${BASE_PATH}/orion"
   local local_file="$BIN_DIR/$COMMAND_NAME"
   
   if download_file "$remote_file" "$local_file"; then
@@ -316,7 +316,7 @@ show_success() {
 main() {
   print_header
   
-  echo -e "${CYAN}This installer downloads pkgup from GitHub.${RESET}"
+  echo -e "${CYAN}This installer downloads orion from GitHub.${RESET}"
   echo -e "${CYAN}Repository: ${BOLD}${GITHUB_USER}/${GITHUB_REPO}${RESET}"
   echo -e "${CYAN}Command name: ${BOLD}$COMMAND_NAME${RESET}"
   echo
@@ -337,7 +337,7 @@ main() {
   if ! install_main_command; then
     log_error "Failed to install main command"
     log_info "Make sure the file exists at:"
-    log_info "  ${GITHUB_RAW}/${BASE_PATH}/pkgup"
+    log_info "  ${GITHUB_RAW}/${BASE_PATH}/orion"
     exit 1
   fi
   
