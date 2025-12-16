@@ -1,44 +1,105 @@
 #!/usr/bin/env bash
 # ============================================
-#   UNINSTALL orion
-#   Removes all orion files
+#   ORION UNINSTALLER
+#   Removes Orion completely
+#   Author: Ayoub (RDXFGXY1)
+#   Version: 2.1
 # ============================================
 set -euo pipefail
 
+# -------------------------
+#  CONFIGURATION
+# -------------------------
 INSTALL_DIR="/usr/local/lib/orion"
 BIN_DIR="/usr/local/bin"
 COMMAND_NAME="orion"
 
-echo "Uninstalling Package Update System..."
+# -------------------------
+#  COLORS
+# -------------------------
+ESC='\033['
+RESET="${ESC}0m"
+BOLD="${ESC}1m"
+RED="${ESC}31m"
+GREEN="${ESC}32m"
+YELLOW="${ESC}33m"
+CYAN="${ESC}36m"
 
-# Check for root privileges
-if [ "$(id -u)" -ne 0 ]; then
-  echo "This script must be run as root. Please use sudo." >&2
-  exit 1
-fi
+# -------------------------
+#  HELPER FUNCTIONS
+# -------------------------
+log_info() {
+  echo -e "${CYAN}[INFO]${RESET} $*"
+}
 
-# Remove main command
-if [ -f "$BIN_DIR/$COMMAND_NAME" ]; then
-    echo "Removing command: $BIN_DIR/$COMMAND_NAME"
+log_success() {
+  echo -e "${GREEN}[✓]${RESET} $*"
+}
+
+log_error() {
+  echo -e "${RED}[✗]${RESET} $*"
+}
+
+check_root() {
+  if [ "$EUID" -ne 0 ]; then
+    log_error "This script must be run as root for complete uninstallation"
+    log_info "Use: sudo bash $0"
+    exit 1
+  fi
+}
+
+confirm_uninstall() {
+  echo -e "${YELLOW}${BOLD}⚠️  WARNING: This will completely remove Orion!${RESET}"
+  echo
+  echo -e "${CYAN}The following will be removed:${RESET}"
+  echo -e "  Command: $BIN_DIR/$COMMAND_NAME"
+  echo -e "  Directory: $INSTALL_DIR"
+  echo -e "  All modules and logs"
+  echo
+  echo -e "${YELLOW}Are you sure? [y/N] ${RESET}"
+  read -r confirm
+  if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    log_info "Uninstallation cancelled"
+    exit 0
+  fi
+}
+
+remove_files() {
+  log_info "Removing files..."
+  
+  # Remove main command
+  if [ -f "$BIN_DIR/$COMMAND_NAME" ]; then
     rm -f "$BIN_DIR/$COMMAND_NAME"
-fi
-
-# Remove installation directory
-if [ -d "$INSTALL_DIR" ]; then
-    echo "Removing directory: $INSTALL_DIR"
+    log_success "Removed: $BIN_DIR/$COMMAND_NAME"
+  fi
+  
+  # Remove installation directory
+  if [ -d "$INSTALL_DIR" ]; then
     rm -rf "$INSTALL_DIR"
-fi
+    log_success "Removed: $INSTALL_DIR"
+  else
+    log_warning "Installation directory not found: $INSTALL_DIR"
+  fi
+}
 
-# Remove related desktop files and logs (add more as modules are added)
-echo "Removing associated application files..."
-if [ -f "/usr/share/applications/discord.desktop" ]; then
-    rm -f "/usr/share/applications/discord.desktop"
-fi
+# -------------------------
+#  MAIN EXECUTION
+# -------------------------
+main() {
+  echo
+  echo -e "${CYAN}${BOLD}Orion Uninstaller${RESET}"
+  echo
+  
+  check_root
+  confirm_uninstall
+  
+  echo
+  
+  remove_files
+  
+  echo
+  log_success "Orion has been completely uninstalled!"
+  echo
+}
 
-if [ -f "/var/log/update-discord.log" ]; then
-    rm -f "/var/log/update-discord.log"
-fi
-
-echo ""
-echo "orion has been uninstalled."
-echo "Note: This script does not remove the applications themselves (e.g., Discord), only the updater scripts."
+main "$@"

@@ -1,0 +1,341 @@
+#!/usr/bin/env bash
+# ============================================
+#   ORION - Package Update Manager
+#   Author: Ayoub (RDXFGXY1)
+#   Version: 2.1
+# ============================================
+set -euo pipefail
+
+# -------------------------
+#  CONFIGURATION
+# -------------------------
+INSTALL_DIR="/usr/local/lib/orion"
+MODULES_DIR="$INSTALL_DIR/modules"
+LOG_DIR="$INSTALL_DIR/logs"
+COMMAND_NAME="orion"
+
+# GitHub update
+GITHUB_USER="RDXFGXY1"
+GITHUB_REPO="Linux-Setup-for-Ex-Windows-Users"
+GITHUB_BRANCH="main"
+GITHUB_PATH="Scripts/Orion"
+
+# -------------------------
+#  COLORS
+# -------------------------
+ESC='\033['
+RESET="${ESC}0m"
+BOLD="${ESC}1m"
+RED="${ESC}31m"
+GREEN="${ESC}32m"
+YELLOW="${ESC}33m"
+CYAN="${ESC}36m"
+BLUE="${ESC}34m"
+
+# -------------------------
+#  HELPER FUNCTIONS
+# -------------------------
+log_info() {
+  echo -e "${CYAN}[INFO]${RESET} $*"
+}
+
+log_success() {
+  echo -e "${GREEN}[✓]${RESET} $*"
+}
+
+log_warning() {
+  echo -e "${YELLOW}[!]${RESET} $*"
+}
+
+log_error() {
+  echo -e "${RED}[✗]${RESET} $*"
+}
+
+# -------------------------
+#  MODULE FUNCTIONS
+# -------------------------
+list_modules() {
+  echo -e "${CYAN}${BOLD}Available packages:${RESET}"
+  echo
+  
+  if [ ! -d "$MODULES_DIR" ]; then
+    log_error "No modules directory found"
+    return 1
+  fi
+  
+  local count=0
+  for module in "$MODULES_DIR"/update-*; do
+    if [ -f "$module" ]; then
+      local pkg=$(basename "$module" | sed 's/^update-//')
+      local version=$(grep -oP '^#\s*Version:\s*\K[\d.]+' "$module" 2>/dev/null || echo "")
+      
+      # Get description
+      local desc=$(grep -oP '^#\s*Description:\s*\K.*' "$module" 2>/dev/null || echo "No description")
+      
+      if [ -n "$version" ]; then
+        echo -e "  ${GREEN}${pkg}${RESET} ${CYAN}(v$version)${RESET}"
+      else
+        echo -e "  ${GREEN}${pkg}${RESET}"
+      fi
+      echo -e "      ${desc}"
+      echo
+      count=$((count + 1))
+    fi
+  done
+  
+  if [ $count -eq 0 ]; then
+    log_warning "No modules found"
+  else
+    echo -e "${CYAN}Total: ${BOLD}$count${RESET} package(s) available"
+  fi
+}
+
+update_package() {
+  local pkg="$1"
+  local bypass="$2"
+  local module_file="$MODULES_DIR/update-$pkg"
+  local log_file="$LOG_DIR/update-$pkg-$(date +%Y%m%d-%H%M%S).log"
+  
+  if [ ! -f "$module_file" ]; then
+    log_error "Package '$pkg' not found"
+    echo
+    log_info "Available packages:"
+    list_modules
+    return 1
+  fi
+  
+  if [ "$bypass" != "true" ]; then
+    echo -e "${YELLOW}Update $pkg? [y/N] ${RESET}"
+    read -r confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+      log_info "Update cancelled"
+      return 0
+    fi
+  fi
+  
+  log_info "Updating $pkg..."
+  
+  # Create log directory if needed
+  mkdir -p "$LOG_DIR"
+  
+  # Execute module with logging
+  if bash "$module_file" 2>&1 | tee "$log_file"; then
+    log_success "$pkg updated successfully"
+    log_info "Log saved: $log_file"
+    return 0
+  else
+    log_error "Failed to update $pkg"
+    log_info "Check log: $log_file"
+    return 1
+  fi
+}
+
+update_all_packages() {
+  local bypass="$1"
+  local updated=0
+  local failed=0
+  
+  echo -e "${CYAN}${BOLD}Updating all packages...${RESET}"
+  echo
+  
+  if [ "$bypass" != "true" ]; then
+    echo -e "${YELLOW}Update ALL packages? [y/N] ${RESET}"
+    read -r confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+      log_info "Update cancelled"
+      return 0
+    fi
+  fi
+  
+  for module in "$MODULES_DIR"/update-*; do
+    if [ -f "$module" ]; then
+      local pkg=$(basename "$module" | sed 's/^update-//')
+      
+      log_info "Updating: $pkg"
+      if update_package "$pkg" "true"; then
+        updated=$((updated + 1))
+      else
+        failed=$((failed + 1))
+      fi
+      echo
+    fi
+  done
+  
+  echo -e "${CYAN}${BOLD}Update Summary:${RESET}"
+  echo -e "  ${GREEN}Successfully updated: $updated${RESET}"
+  if [ $failed -gt 0 ]; then
+    echo -e "  ${RED}Failed: $failed${RESET}"
+  fi
+}
+
+update_orion_self() {
+  log_info "Updating Orion from GitHub..."
+  
+  local temp_dir="/tmp/orion-update-$(date +%s)"
+  mkdir -p "$temp_dir"
+  
+  # Download from GitHub
+  log_info "Downloading latest version..."
+  
+  if git clone --depth 1 --branch "$GITHUB_BRANCH" \
+     "https://github.com/$GITHUB_USER/$GITHUB_REPO.git" "$temp_dir" 2>/dev/null; then
+    log_success "Downloaded latest version"
+  else
+    log_error "Failed to download from GitHub"
+    rm -rf "$temp_dir"
+    return 1
+  fi
+  
+  local source_dir="$temp_dir/$GITHUB_PATH"
+  
+  if [ ! -d "$source_dir" ]; then
+    log_error "Orion directory not found in repo"
+    rm -rf "$temp_dir"
+    return 1
+  fi
+  
+  # Update main command
+  log_info "Updating main command..."
+  sudo cp "$source_dir/orion" "$(which orion)"
+  sudo chmod +x "$(which orion)"
+  
+  # Update modules
+  log_info "Updating modules..."
+  for module in "$source_dir/modules"/update-*; do
+    if [ -f "$module" ]; then
+      local module_name=$(basename "$module")
+      sudo cp "$module" "$MODULES_DIR/"
+      sudo chmod +x "$MODULES_DIR/$module_name"
+      
+      local version=$(grep -oP '^#\s*Version:\s*\K[\d.]+' "$module" 2>/dev/null || echo "unknown")
+      log_success "Updated: $(echo $module_name | sed 's/^update-//') (v$version)"
+    fi
+  done
+  
+  # Cleanup
+  rm -rf "$temp_dir"
+  
+  log_success "Orion updated successfully!"
+  echo
+  log_info "Run 'orion -l' to see updated modules"
+}
+
+show_help() {
+  cat << EOF
+${CYAN}${BOLD}Orion - Package Update Manager${RESET}
+Version: 2.1
+
+${CYAN}Usage:${RESET}
+  orion [OPTION] [PACKAGE]
+
+${CYAN}Options:${RESET}
+  -l, --list              List available packages
+  -u, --update PACKAGE    Update specific package
+  -a, --all               Update all packages
+  -y, --yes               Bypass confirmation prompts
+  -s, --self              Update Orion itself from GitHub
+  -h, --help              Show this help message
+  -v, --version           Show version
+
+${CYAN}Examples:${RESET}
+  orion -l                 List all packages
+  orion -u discord         Update Discord
+  orion -u discord -y      Update Discord without confirmation
+  orion -a                 Update all packages (with confirmation)
+  orion -a -y              Update all packages (no confirmation)
+  orion -s                 Update Orion from GitHub
+
+${CYAN}Module Directory:${RESET}
+  $MODULES_DIR
+
+${CYAN}Log Directory:${RESET}
+  $LOG_DIR
+EOF
+}
+
+show_version() {
+  echo "Orion Package Manager v2.1"
+  echo "Installation: $INSTALL_DIR"
+  echo "Modules: $(find "$MODULES_DIR" -name 'update-*' | wc -l)"
+}
+
+# -------------------------
+#  MAIN EXECUTION
+# -------------------------
+main() {
+  local action=""
+  local package=""
+  local bypass="false"
+  
+  # Parse arguments
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      -l|--list)
+        action="list"
+        shift
+        ;;
+      -u|--update)
+        if [ -n "${2:-}" ]; then
+          action="update"
+          package="$2"
+          shift 2
+        else
+          log_error "Package name required for -u option"
+          echo
+          show_help
+          exit 1
+        fi
+        ;;
+      -a|--all)
+        action="all"
+        shift
+        ;;
+      -y|--yes)
+        bypass="true"
+        shift
+        ;;
+      -s|--self)
+        action="self"
+        shift
+        ;;
+      -h|--help)
+        show_help
+        exit 0
+        ;;
+      -v|--version)
+        show_version
+        exit 0
+        ;;
+      *)
+        log_error "Unknown option: $1"
+        echo
+        show_help
+        exit 1
+        ;;
+    esac
+  done
+  
+  # Default action if none specified
+  if [ -z "$action" ]; then
+    show_help
+    exit 0
+  fi
+  
+  # Execute action
+  case $action in
+    list)
+      list_modules
+      ;;
+    update)
+      update_package "$package" "$bypass"
+      ;;
+    all)
+      update_all_packages "$bypass"
+      ;;
+    self)
+      update_orion_self
+      ;;
+  esac
+}
+
+main "$@"
