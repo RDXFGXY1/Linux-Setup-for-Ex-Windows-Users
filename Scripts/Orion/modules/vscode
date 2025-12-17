@@ -1,0 +1,749 @@
+#!/usr/bin/env bash
+# ============================================
+#   VS CODE AUTO-UPDATER
+#   Author: RDXFGXY1
+#   Version: 3.1
+#   Description: VS Code updater with multi-distro support and forced tarball mode (Debian, Fedora, Arch, SUSE)
+#   Usage: update-vscode [--yes|-y] [--tarball|-t]
+# ============================================
+
+# Parse arguments FIRST (before set -u)
+SKIP_CONFIRM=false
+FORCE_TARBALL=false
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --yes|-y)
+      SKIP_CONFIRM=true
+      shift
+      ;;
+    --tarball|-t)
+      FORCE_TARBALL=true
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1"
+      echo "Usage: update-vscode [--yes|-y] [--tarball|-t]"
+      exit 1
+      ;;
+  esac
+done
+
+# Now enable strict mode
+set -euo pipefail
+IFS=$'\n\t'
+
+# Configuration
+INSTALL_DIR="/opt/vscode"
+TMPDIR="$(mktemp -d -t vscode-update.XXXXXX)"
+DESKTOP_FILE="/usr/share/applications/code.desktop"
+LOGFILE="/var/log/update-vscode.log"
+STATE_DIR="/usr/local/lib/orion/state"
+INSTALL_METHOD_FILE="$STATE_DIR/vscode.method"
+
+# Multi-distro support variables
+DETECTED_DISTRO=""
+INSTALL_METHOD="tarball"
+PACKAGE_NAME=""
+
+# Colors
+ESC='\033['
+RESET="${ESC}0m"
+BOLD="${ESC}1m"
+RED="${ESC}31m"; GREEN="${ESC}32m"; YELLOW="${ESC}33m"; BLUE="${ESC}34m"
+MAG="${ESC}35m"; CYAN="${ESC}36m"; WHITE="${ESC}37m"
+
+# Rainbow helper
+rainbow() {
+  local text="$1"
+  local i=0
+  local colors=("${RED}" "${YELLOW}" "${GREEN}" "${CYAN}" "${BLUE}" "${MAG}")
+  local out=""
+  for ((i=0; i<${#text}; i++)); do
+    local c="${text:i:1}"
+    out+="${colors[$((i % ${#colors[@]}))]}${c}"
+  done
+  echo -e "${out}${RESET}"
+}
+
+log() {
+  echo -e "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOGFILE"
+}
+
+# Distribution Detection Function
+detect_distro() {
+  if [ -f /etc/os-release ]; then
+    source /etc/os-release
+    
+    if [ -n "${ID:-}" ]; then
+      case "$ID" in
+        debian|ubuntu)
+          DETECTED_DISTRO="debian"
+          ;;
+        fedora|rhel|centos|rocky|almalinux)
+          DETECTED_DISTRO="fedora"
+          ;;
+        arch|manjaro|artix)
+          DETECTED_DISTRO="arch"
+          ;;
+        opensuse|opensuse-leap|opensuse-tumbleweed|suse|sles)
+          DETECTED_DISTRO="suse"
+          ;;
+        *)
+          if [ -n "${ID_LIKE:-}" ]; then
+            case "$ID_LIKE" in
+              *debian*)
+                DETECTED_DISTRO="debian"
+                ;;
+              *fedora*)
+                DETECTED_DISTRO="fedora"
+                ;;
+              *arch*)
+                DETECTED_DISTRO="arch"
+                ;;
+              *suse*)
+                DETECTED_DISTRO="suse"
+                ;;
+              *)
+                DETECTED_DISTRO="unknown"
+                ;;
+            esac
+          else
+            DETECTED_DISTRO="unknown"
+          fi
+          ;;
+      esac
+    else
+      DETECTED_DISTRO="unknown"
+    fi
+  else
+    DETECTED_DISTRO="unknown"
+  fi
+  
+  echo "$DETECTED_DISTRO"
+}
+
+# Dependency Checking
+check_dependencies() {
+  log "Checking dependencies for detected distro: $DETECTED_DISTRO"
+  
+  case "$DETECTED_DISTRO" in
+    debian)
+      if ! command -v dpkg >/dev/null 2>&1; then
+        echo -e "${RED}Error: dpkg is not installed.${RESET}"
+        log "Missing dpkg"
+        return 1
+      fi
+      ;;
+    fedora)
+      if ! command -v dnf >/dev/null 2>&1 && ! command -v yum >/dev/null 2>&1; then
+        echo -e "${RED}Error: dnf or yum is not installed.${RESET}"
+        log "Missing dnf/yum"
+        return 1
+      fi
+      ;;
+    arch)
+      if ! command -v pacman >/dev/null 2>&1; then
+        echo -e "${RED}Error: pacman is not installed.${RESET}"
+        log "Missing pacman"
+        return 1
+      fi
+      ;;
+    suse)
+      if ! command -v zypper >/dev/null 2>&1; then
+        echo -e "${RED}Error: zypper is not installed.${RESET}"
+        log "Missing zypper"
+        return 1
+      fi
+      ;;
+  esac
+  
+  return 0
+}
+
+cleanup() {
+  rm -rf "$TMPDIR"
+}
+trap 'cleanup; log "Interrupted. Exiting."; echo -e "\n${RED}Update aborted.${RESET}"; exit 1' INT TERM
+
+# ASCII Art
+print_vscode_logo() {
+cat <<'LOGO'
+    ██╗   ██╗███████╗     ██████╗ ██████╗ ██████╗ ███████╗
+    ██║   ██║██╔════╝    ██╔════╝██╔═══██╗██╔══██╗██╔════╝
+    ██║   ██║███████╗    ██║     ██║   ██║██║  ██║█████╗  
+    ╚██╗ ██╔╝╚════██║    ██║     ██║   ██║██║  ██║██╔══╝  
+     ╚████╔╝ ███████║    ╚██████╗╚██████╔╝██████╔╝███████╗
+      ╚═══╝  ╚══════╝     ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝
+LOGO
+}
+
+# Dev quotes
+quotes=(
+  "Code is like humor. When you have to explain it, it's bad. - Cory House"
+  "First, solve the problem. Then, write the code. - John Johnson"
+  "Experience is the name everyone gives to their mistakes. - Oscar Wilde"
+  "In order to be irreplaceable, one must always be different. - Coco Chanel"
+  "Simplicity is the soul of efficiency. - Austin Freeman"
+)
+
+rand_quote() {
+  local i=$((RANDOM % ${#quotes[@]}))
+  echo "${quotes[$i]}"
+}
+
+# Spinner
+spinner() {
+  local pid="$1"
+  local msg="$2"
+  local delay=0.08
+  while kill -0 "$pid" 2>/dev/null; do
+    printf "\r| %s" "$msg"
+    sleep "$delay"
+    printf "\r/ %s" "$msg"
+    sleep "$delay"
+    printf "\r- %s" "$msg"
+    sleep "$delay"
+    printf "\r\\ %s" "$msg"
+    sleep "$delay"
+  done
+  printf "\r"
+}
+
+# Progress bar
+progress_bar() {
+  local seconds="$1"
+  local msg="$2"
+  local i=0
+  printf "%s\n" "$msg"
+  while [ $i -le "$seconds" ]; do
+    local pct=$((i * 100 / seconds))
+    local done=$((pct / 4))
+    local left=$((25 - done))
+    printf "\r["
+    
+    local j=0
+    while [ $j -lt "$done" ]; do
+      printf "█"
+      j=$((j + 1))
+    done
+    
+    j=0
+    while [ $j -lt "$left" ]; do
+      printf " "
+      j=$((j + 1))
+    done
+    
+    printf "] %3s%%" "$pct"
+    i=$((i + 1))
+    sleep 0.08
+  done
+  printf "\n"
+}
+
+# System info
+print_sysinfo() {
+  local host
+  local os
+  local kernel
+  local uptime
+  local shell
+  local mem
+  local distro_display
+  
+  host="$(hostnamectl --static 2>/dev/null || hostname)"
+  os="$(grep '^PRETTY_NAME' /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '\"' || echo "Linux")"
+  kernel="$(uname -r)"
+  uptime="$(uptime -p 2>/dev/null | sed 's/up //' || echo "unknown")"
+  shell="$(basename "$SHELL")"
+  mem="$(free -h 2>/dev/null | awk '/Mem:/ {print $3 " / " $2}' || echo "unknown")"
+  
+  case "$DETECTED_DISTRO" in
+    debian)
+      distro_display="${GREEN}Debian-based${RESET}"
+      ;;
+    fedora)
+      distro_display="${BLUE}Fedora-based${RESET}"
+      ;;
+    arch)
+      distro_display="${CYAN}Arch-based${RESET}"
+      ;;
+    suse)
+      distro_display="${YELLOW}SUSE-based${RESET}"
+      ;;
+    *)
+      distro_display="${MAG}Unknown${RESET}"
+      ;;
+  esac
+  
+  echo -e "${CYAN}┌────────────────────────────────────────────────────┐${RESET}"
+  echo -e " ${BOLD}Host:${RESET} $host    ${BOLD}OS:${RESET} $os"
+  echo -e " ${BOLD}Kernel:${RESET} $kernel    ${BOLD}Uptime:${RESET} $uptime"
+  echo -e " ${BOLD}Shell:${RESET} $shell    ${BOLD}Memory:${RESET} $mem"
+  echo -e " ${BOLD}Distro Family:${RESET} $distro_display"
+  echo -e "${CYAN}└────────────────────────────────────────────────────┘${RESET}"
+}
+
+# Check requirements
+check_requirements() {
+  log "Checking requirements..."
+  if command -v wget >/dev/null 2>&1; then
+    DL_CMD="wget"
+  elif command -v curl >/dev/null 2>&1; then
+    DL_CMD="curl"
+  else
+    echo -e "${RED}Error: neither wget nor curl is installed.${RESET}"
+    exit 1
+  fi
+  return 0
+}
+
+# Get current installed version
+get_current_version() {
+  local version="not installed"
+  
+  # Try package manager specific version detection
+  case "$DETECTED_DISTRO" in
+    debian)
+      if command -v dpkg >/dev/null 2>&1; then
+        version=$(dpkg -l code 2>/dev/null | awk '/^ii/ {print $3}' || echo "not installed")
+      fi
+      ;;
+    fedora)
+      if command -v rpm >/dev/null 2>&1; then
+        version=$(rpm -q code --queryformat='%{VERSION}' 2>/dev/null || echo "not installed")
+      fi
+      ;;
+    arch)
+      if command -v pacman >/dev/null 2>&1; then
+        version=$(pacman -Q visual-studio-code-bin 2>/dev/null | awk '{print $2}' || echo "not installed")
+      fi
+      ;;
+    suse)
+      if command -v zypper >/dev/null 2>&1; then
+        version=$(zypper info code 2>/dev/null | grep Version | awk '{print $NF}' || echo "not installed")
+      fi
+      ;;
+  esac
+  
+  # Fallback: check if code command exists
+  if [ "$version" = "not installed" ] && command -v code >/dev/null 2>&1; then
+    version=$(code --version 2>/dev/null | head -n1 || echo "unknown")
+  fi
+  
+  # Try Flatpak
+  if [ "$version" = "not installed" ] && command -v flatpak >/dev/null 2>&1; then
+    version=$(flatpak info com.visualstudio.code 2>/dev/null | grep Version | awk '{print $NF}' || echo "not installed")
+  fi
+  
+  echo "$version"
+}
+
+# Get latest available version
+get_latest_version() {
+  local version="unknown"
+  
+  # VS Code API endpoint for latest stable version
+  version=$(curl -sL "https://code.visualstudio.com/sha/download?build=stable&os=linux-x64" -w '%{url_effective}' -o /dev/null 2>/dev/null | grep -oP 'stable/\K[^/]+' || echo "unknown")
+  
+  echo "$version"
+}
+
+# Distribution-specific Installation Functions
+
+install_vscode_debian() {
+  log "Installing VS Code via Debian package manager..."
+  echo -e "${CYAN}[Debian] Installing VS Code...${RESET}"
+  
+  local deb_file="$TMPDIR/vscode.deb"
+  echo -e "${YELLOW}Downloading VS Code .deb package...${RESET}"
+  
+  if [ "$DL_CMD" = "wget" ]; then
+    wget -q --show-progress "https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-x64" -O "$deb_file" || return 1
+  else
+    curl -L --progress-bar -o "$deb_file" "https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-x64" || return 1
+  fi
+  
+  echo -e "${YELLOW}Installing package...${RESET}"
+  sudo dpkg -i "$deb_file" || {
+    echo -e "${YELLOW}Fixing dependencies...${RESET}"
+    sudo apt-get install -f -y || return 1
+  }
+  
+  echo -e "${GREEN}✓ Debian installation complete${RESET}"
+  log "VS Code installed via dpkg"
+  INSTALL_METHOD="debian-dpkg"
+  return 0
+}
+
+install_vscode_fedora() {
+  log "Installing VS Code via Fedora package manager..."
+  echo -e "${CYAN}[Fedora] Installing VS Code...${RESET}"
+  
+  local rpm_file="$TMPDIR/vscode.rpm"
+  echo -e "${YELLOW}Downloading VS Code .rpm package...${RESET}"
+  
+  if [ "$DL_CMD" = "wget" ]; then
+    wget -q --show-progress "https://code.visualstudio.com/sha/download?build=stable&os=linux-rpm-x64" -O "$rpm_file" || return 1
+  else
+    curl -L --progress-bar -o "$rpm_file" "https://code.visualstudio.com/sha/download?build=stable&os=linux-rpm-x64" || return 1
+  fi
+  
+  echo -e "${YELLOW}Installing package...${RESET}"
+  local dnf_cmd
+  if command -v dnf >/dev/null 2>&1; then
+    dnf_cmd="sudo dnf"
+  else
+    dnf_cmd="sudo yum"
+  fi
+  $dnf_cmd install -y "$rpm_file" || return 1
+  
+  echo -e "${GREEN}✓ Fedora installation complete${RESET}"
+  log "VS Code installed via dnf/yum"
+  INSTALL_METHOD="fedora-dnf"
+  return 0
+}
+
+install_vscode_arch() {
+  log "Installing VS Code via Arch package manager..."
+  echo -e "${CYAN}[Arch] Installing VS Code...${RESET}"
+  
+  local aur_helper=""
+  
+  if command -v yay >/dev/null 2>&1; then
+    aur_helper="yay"
+  elif command -v paru >/dev/null 2>&1; then
+    aur_helper="paru"
+  fi
+  
+  if [ -n "$aur_helper" ]; then
+    echo -e "${YELLOW}Using AUR helper: $aur_helper${RESET}"
+    echo -e "${YELLOW}Installing VS Code from AUR...${RESET}"
+    $aur_helper -S --noconfirm visual-studio-code-bin || return 1
+    echo -e "${GREEN}✓ Arch AUR installation complete${RESET}"
+    log "VS Code installed via $aur_helper AUR"
+    INSTALL_METHOD="arch-aur"
+    return 0
+  else
+    echo -e "${YELLOW}No AUR helper found (yay/paru). Falling back to tarball...${RESET}"
+    log "No AUR helper available, falling back to tarball"
+    return 1
+  fi
+}
+
+install_vscode_suse() {
+  log "Installing VS Code via SUSE package manager..."
+  echo -e "${CYAN}[SUSE] Installing VS Code...${RESET}"
+  
+  local rpm_file="$TMPDIR/vscode.rpm"
+  echo -e "${YELLOW}Downloading VS Code .rpm package...${RESET}"
+  
+  if [ "$DL_CMD" = "wget" ]; then
+    wget -q --show-progress "https://code.visualstudio.com/sha/download?build=stable&os=linux-rpm-x64" -O "$rpm_file" || return 1
+  else
+    curl -L --progress-bar -o "$rpm_file" "https://code.visualstudio.com/sha/download?build=stable&os=linux-rpm-x64" || return 1
+  fi
+  
+  echo -e "${YELLOW}Installing package...${RESET}"
+  sudo zypper install -y "$rpm_file" || return 1
+  
+  echo -e "${GREEN}✓ SUSE installation complete${RESET}"
+  log "VS Code installed via zypper"
+  INSTALL_METHOD="suse-zypper"
+  return 0
+}
+
+install_vscode_flatpak() {
+  log "Installing VS Code via Flatpak..."
+  echo -e "${CYAN}[Flatpak] Installing VS Code...${RESET}"
+  
+  if ! command -v flatpak >/dev/null 2>&1; then
+    echo -e "${RED}Flatpak is not installed.${RESET}"
+    log "Flatpak not available"
+    return 1
+  fi
+  
+  echo -e "${YELLOW}Checking Flathub repository...${RESET}"
+  if ! flatpak remote-list | grep -q flathub; then
+    echo -e "${YELLOW}Adding Flathub repository...${RESET}"
+    flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo || return 1
+  fi
+  
+  echo -e "${YELLOW}Installing VS Code from Flathub...${RESET}"
+  flatpak install -y flathub com.visualstudio.code || return 1
+  
+  echo -e "${GREEN}✓ Flatpak installation complete${RESET}"
+  log "VS Code installed via Flatpak"
+  INSTALL_METHOD="flatpak"
+  return 0
+}
+
+install_vscode_tarball() {
+  log "Installing VS Code via tarball method..."
+  echo -e "${CYAN}[Tarball] Installing VS Code...${RESET}"
+  
+  log "Downloading latest VS Code tarball to $TMPDIR"
+  echo -e "${YELLOW}Downloading latest VS Code...${RESET}"
+  
+  (
+    if [ "$DL_CMD" = "wget" ]; then
+      wget -q --show-progress --progress=bar:force -O "$TMPDIR/vscode.tar.gz" "https://code.visualstudio.com/sha/download?build=stable&os=linux-x64"
+    else
+      curl -L --progress-bar -o "$TMPDIR/vscode.tar.gz" "https://code.visualstudio.com/sha/download?build=stable&os=linux-x64"
+    fi
+  ) & dlpid=$!
+
+  spinner "$dlpid" "Downloading..."
+  wait "$dlpid" || { echo -e "${RED}Download failed.${RESET}"; log "Download failed."; return 1; }
+  echo -e "${GREEN}Download complete.${RESET}"
+  log "Downloaded to $TMPDIR/vscode.tar.gz"
+
+  echo -e "${YELLOW}Extracting files...${RESET}"
+  progress_bar 30 "Extracting (simulated progress bar)"
+  tar -xzf "$TMPDIR/vscode.tar.gz" -C "$TMPDIR" || return 1
+  
+  # VS Code extracts to VSCode-linux-x64
+  if [ ! -d "$TMPDIR/VSCode-linux-x64" ]; then
+    echo -e "${RED}Extraction failed.${RESET}" && log "Extraction failed." && return 1
+  fi
+  log "Extraction OK."
+
+  echo -e "${YELLOW}Removing old installation (if any)...${RESET}"
+  progress_bar 12 "Cleaning old installs"
+  sudo rm -rf "$INSTALL_DIR" "${INSTALL_DIR}"* || true
+  log "Old installation removed."
+
+  echo -e "${YELLOW}Installing new version to ${INSTALL_DIR}...${RESET}"
+  sudo mv "$TMPDIR/VSCode-linux-x64" "$INSTALL_DIR" || return 1
+  sudo chown -R root:root "$INSTALL_DIR" || true
+  sudo chmod -R 755 "$INSTALL_DIR" || true
+  log "Moved new VS Code to $INSTALL_DIR"
+
+  echo -e "${YELLOW}Creating launcher and symlink...${RESET}"
+  sudo ln -sf "$INSTALL_DIR/bin/code" /usr/bin/code
+  sudo tee "$DESKTOP_FILE" >/dev/null <<EOF
+[Desktop Entry]
+Name=Visual Studio Code
+Comment=Code Editing. Redefined.
+Exec=/usr/bin/code %F
+Icon=$INSTALL_DIR/resources/app/resources/linux/code.png
+Terminal=false
+Type=Application
+Categories=Development;IDE;
+MimeType=text/plain;inode/directory;
+EOF
+  sudo chmod 644 "$DESKTOP_FILE"
+  log "Symlink and desktop file created."
+  
+  echo -e "${GREEN}✓ Tarball installation complete${RESET}"
+  log "VS Code installed via tarball"
+  INSTALL_METHOD="tarball"
+  return 0
+}
+
+# Ask for confirmation
+confirm_action() {
+  local prompt="$1"
+  if [ "$SKIP_CONFIRM" = true ]; then
+    return 0
+  fi
+  
+  echo -e "${YELLOW}${prompt}${RESET}"
+  read -p "Continue? [y/N] " -n 1 -r
+  echo
+  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    log "User cancelled operation"
+    echo -e "${YELLOW}Operation cancelled.${RESET}"
+    cleanup
+    exit 0
+  fi
+}
+
+# Main
+main() {
+  mkdir -p "$(dirname "$LOGFILE")"
+  mkdir -p "$STATE_DIR"
+  log "Starting VS Code updater (v3.1 - Multi-distro)."
+  clear
+  print_vscode_logo
+  echo
+  echo -e "$(rainbow "Updating Visual Studio Code — DEVELOPER EDITION")"
+  echo
+
+  # Detect distribution
+  echo -e "${CYAN}Detecting Linux distribution...${RESET}"
+  detect_distro
+  echo -e "${CYAN}Detected distribution family:${RESET} ${BOLD}$DETECTED_DISTRO${RESET}"
+  echo
+
+  print_sysinfo
+  echo
+  echo -e "${MAG}Quote:${RESET} \"$(rand_quote)\""
+  echo
+
+  # Check requirements
+  check_requirements
+  
+  # Check dependencies for detected distro
+  if ! check_dependencies; then
+    echo -e "${YELLOW}Falling back to tarball installation...${RESET}"
+    DETECTED_DISTRO="unknown"
+  fi
+
+  # Check current version
+  local current_version
+  current_version=$(get_current_version)
+  echo -e "${CYAN}Current VS Code version:${RESET} ${BOLD}$current_version${RESET}"
+  
+  # Check latest version available
+  echo -e "${CYAN}Checking latest version...${RESET}"
+  local latest_version
+  latest_version=$(get_latest_version)
+  echo -e "${CYAN}Latest VS Code version:${RESET} ${BOLD}$latest_version${RESET}"
+  echo
+  
+  # Compare versions
+  if [ "$current_version" != "not installed" ] && [ "$current_version" != "unknown" ]; then
+    echo -e "${GREEN}VS Code is installed${RESET}"
+    confirm_action "Do you want to update/reinstall?"
+  elif [ "$current_version" = "not installed" ]; then
+    echo -e "${YELLOW}VS Code is not installed yet.${RESET}"
+    confirm_action "Proceed with fresh installation?"
+  fi
+
+  echo -ne "${CYAN}Checking connectivity to code.visualstudio.com...${RESET} "
+  if curl -sSfI https://code.visualstudio.com >/dev/null 2>&1; then
+    echo -e "${GREEN}OK${RESET}"
+  else
+    echo -e "${RED}Failed${RESET} — network or DNS problem."
+    log "Network check failed."
+    exit 1
+  fi
+
+  # Route to appropriate installation method
+  echo
+  echo -e "${YELLOW}Installing VS Code...${RESET}"
+  local install_success=false
+  
+  # Check if forced tarball installation is requested
+  if [ "$FORCE_TARBALL" = true ] || [ "${ORION_FORCE_TARBALL:-false}" = "true" ]; then
+    log "Forced tarball installation requested"
+    echo -e "${CYAN}[Tarball] Installing VS Code via tarball (forced mode)...${RESET}"
+    if install_vscode_tarball; then
+      install_success=true
+      INSTALL_METHOD="tarball-forced"
+    fi
+  else
+    case "$DETECTED_DISTRO" in
+      debian)
+        if install_vscode_debian; then
+          install_success=true
+        else
+          echo -e "${YELLOW}Debian package installation failed, trying Flatpak fallback...${RESET}"
+          if install_vscode_flatpak; then
+            install_success=true
+          else
+            echo -e "${YELLOW}Flatpak installation failed, trying tarball fallback...${RESET}"
+            if install_vscode_tarball; then
+              install_success=true
+            fi
+          fi
+        fi
+        ;;
+      fedora)
+        if install_vscode_fedora; then
+          install_success=true
+        else
+          echo -e "${YELLOW}Fedora package installation failed, trying Flatpak fallback...${RESET}"
+          if install_vscode_flatpak; then
+            install_success=true
+          else
+            echo -e "${YELLOW}Flatpak installation failed, trying tarball fallback...${RESET}"
+            if install_vscode_tarball; then
+              install_success=true
+            fi
+          fi
+        fi
+        ;;
+      arch)
+        if install_vscode_arch; then
+          install_success=true
+        else
+          echo -e "${YELLOW}Arch/AUR installation failed, trying Flatpak fallback...${RESET}"
+          if install_vscode_flatpak; then
+            install_success=true
+          else
+            echo -e "${YELLOW}Flatpak installation failed, trying tarball fallback...${RESET}"
+            if install_vscode_tarball; then
+              install_success=true
+            fi
+          fi
+        fi
+        ;;
+      suse)
+        if install_vscode_suse; then
+          install_success=true
+        else
+          echo -e "${YELLOW}SUSE package installation failed, trying Flatpak fallback...${RESET}"
+          if install_vscode_flatpak; then
+            install_success=true
+          else
+            echo -e "${YELLOW}Flatpak installation failed, trying tarball fallback...${RESET}"
+            if install_vscode_tarball; then
+              install_success=true
+            fi
+          fi
+        fi
+        ;;
+      *)
+        echo -e "${YELLOW}Unknown distribution detected, trying Flatpak...${RESET}"
+        if install_vscode_flatpak; then
+          install_success=true
+        else
+          echo -e "${YELLOW}Flatpak installation failed, trying tarball fallback...${RESET}"
+          if install_vscode_tarball; then
+            install_success=true
+          fi
+        fi
+        ;;
+    esac
+  fi
+  
+  if [ "$install_success" = false ]; then
+    echo -e "${RED}${BOLD}Installation failed.${RESET}"
+    log "Installation failed for all methods"
+    exit 1
+  fi
+
+  # Get installed version after installation
+  echo -e "${YELLOW}Verifying installation...${RESET}"
+  progress_bar 10 "Verifying"
+  local installed_version
+  installed_version=$(get_current_version)
+  
+  # Save installation method
+  echo "$INSTALL_METHOD" | sudo tee "$INSTALL_METHOD_FILE" >/dev/null 2>&1 || true
+  log "Installation method saved: $INSTALL_METHOD"
+
+  echo
+  print_vscode_logo
+  echo -e "${GREEN}${BOLD}🎉 VS Code was installed/updated successfully!${RESET}"
+  echo -e "${CYAN}Installed version:${RESET} ${BOLD}$installed_version${RESET}"
+  echo -e "${CYAN}Installation method:${RESET} ${BOLD}$INSTALL_METHOD${RESET}"
+  echo -e "${CYAN}Run:${RESET} ${BOLD}code${RESET} or launch from your apps menu."
+  log "Installation complete. Version: $installed_version | Method: $INSTALL_METHOD"
+
+  cat <<'CELEB'
+          { }
+         { } }
+        { } } }
+         \|_|/
+          (◕‿◕)
+          Happy Coding!
+CELEB
+
+  cleanup
+}
+
+check_requirements
+main
