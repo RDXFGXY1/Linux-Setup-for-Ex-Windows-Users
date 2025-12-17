@@ -56,8 +56,16 @@ confirm_uninstall() {
   echo -e "  Directory: $INSTALL_DIR"
   echo -e "  All modules and logs"
   echo
-  echo -e "${YELLOW}Are you sure? [y/N] ${RESET}"
-  read -r confirm
+
+  # Auto-confirm if ORION_YES is set
+  if [[ "${ORION_YES}" == "1" ]]; then
+    echo -e "${YELLOW}Auto-confirm enabled (ORION_YES=1)${RESET}"
+    confirm="y"
+  else
+    echo -e "${YELLOW}Are you sure? [y/N] ${RESET}"
+    read -r confirm
+  fi
+
   if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
     log_info "Uninstallation cancelled"
     exit 0
