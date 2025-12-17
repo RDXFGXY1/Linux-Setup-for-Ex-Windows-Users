@@ -203,7 +203,7 @@ update_all_packages() {
       local pkg=$(basename "$module" | sed 's/^update-//')
       
       echo -e "${CYAN}=== Updating: $pkg ===${RESET}"
-      if update_package "$pkg" "true"; then
+      if update_package "$pkg" "true" "false"; then
         updated=$((updated + 1))
       else
         failed=$((failed + 1))
@@ -219,81 +219,112 @@ update_all_packages() {
   fi
 }
 
+# Get list of module files from GitHub
+get_github_modules_list() {
+  local api_url="https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${GITHUB_PATH}/modules?ref=${GITHUB_BRANCH}"
+  
+  # Try with jq if available
+  if command -v jq >/dev/null 2>&1; then
+    curl -sL "$api_url" 2>/dev/null | jq -r '.[].name' 2>/dev/null
+  else
+    # Fallback: parse JSON manually
+    curl -sL "$api_url" 2>/dev/null | grep -oP '"name":\s*"\K[^"]+' 2>/dev/null
+  fi
+}
+
 update_orion_self() {
   log_info "Updating Orion from GitHub..."
   
   local temp_dir="/tmp/orion-update-$(date +%s)"
-  mkdir -p "$temp_dir"
+  mkdir -p "$temp_dir/modules"
   
-  # Download from GitHub using curl
-  log_info "Downloading latest version..."
+  # Download main orion script
+  log_info "Downloading main Orion script..."
+  local orion_url="https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/$GITHUB_PATH/orion"
   
-  # Files to download
-  local files=(
-    "orion"
-    "install/install.sh"
-    "modules/discord"
-    "README.md"
-    "uninstall.sh"
-  )
-  
-  local downloaded=0
-  local failed=0
-  
-  for file in "${files[@]}"; do
-    local url="https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/Scripts/Orion/$file"
-    local dest="$temp_dir/$file"
-    
-    # Create directory if needed
-    mkdir -p "$(dirname "$dest")"
-    
-    if curl -fsSL "$url" -o "$dest" 2>/dev/null; then
-      downloaded=$((downloaded + 1))
-    else
-      log_warning "Failed to download: $file"
-      failed=$((failed + 1))
-    fi
-  done
-  
-  if [ $downloaded -eq 0 ]; then
-    log_error "Failed to download any files from GitHub"
+  if curl -fsSL "$orion_url" -o "$temp_dir/orion" 2>/dev/null; then
+    log_success "Downloaded main script"
+  else
+    log_error "Failed to download main script"
     rm -rf "$temp_dir"
     return 1
   fi
   
-  log_success "Downloaded $downloaded file(s) from GitHub"
+  # Get list of all modules from GitHub
+  log_info "Fetching module list from GitHub..."
+  local modules_list
+  modules_list=$(get_github_modules_list)
+  
+  if [ -z "$modules_list" ]; then
+    log_warning "Could not fetch module list, trying known modules..."
+    # Fallback to known modules if API fails
+    modules_list="discord
+vscode"
+  fi
+  
+  # Download all modules
+  log_info "Downloading modules..."
+  local downloaded=0
+  local failed=0
+  
+  while IFS= read -r module_name; do
+    [ -z "$module_name" ] && continue
+    
+    local module_url="https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/$GITHUB_PATH/modules/$module_name"
+    local dest="$temp_dir/modules/$module_name"
+    
+    if curl -fsSL "$module_url" -o "$dest" 2>/dev/null; then
+      local version=$(grep -oP '^#\s*Version:\s*\K[\d.]+' "$dest" 2>/dev/null || echo "unknown")
+      log_success "Downloaded: $module_name (v$version)"
+      downloaded=$((downloaded + 1))
+    else
+      log_warning "Failed to download: $module_name"
+      failed=$((failed + 1))
+    fi
+  done <<< "$modules_list"
+  
+  if [ $downloaded -eq 0 ]; then
+    log_error "Failed to download any modules from GitHub"
+    rm -rf "$temp_dir"
+    return 1
+  fi
+  
+  echo
+  log_success "Downloaded $downloaded module(s) from GitHub"
   
   # Update main command
+  log_info "Installing main command..."
   if [ -f "$temp_dir/orion" ]; then
-    log_info "Updating main command..."
-    sudo cp "$temp_dir/orion" "$(which orion)"
-    sudo chmod +x "$(which orion)"
+    sudo cp "$temp_dir/orion" "$(which orion)" 2>/dev/null || sudo cp "$temp_dir/orion" "/usr/local/bin/orion"
+    sudo chmod +x "$(which orion 2>/dev/null || echo "/usr/local/bin/orion")"
     log_success "Main command updated"
   fi
   
   # Update modules
-  if [ -d "$temp_dir/modules" ]; then
-    log_info "Updating modules..."
-    for module in "$temp_dir/modules"/*; do
-      if [ -f "$module" ]; then
-        local module_name=$(basename "$module")
-        local module_dest="$MODULES_DIR/update-$module_name"
-        
-        sudo cp "$module" "$module_dest"
-        sudo chmod +x "$module_dest"
-        
-        local version=$(grep -oP '^#\s*Version:\s*\K[\d.]+' "$module" 2>/dev/null || echo "unknown")
-        log_success "Updated: $module_name (v$version)"
-      fi
-    done
-  fi
+  log_info "Installing modules..."
+  for module in "$temp_dir/modules"/*; do
+    if [ -f "$module" ]; then
+      local module_name=$(basename "$module")
+      local module_dest="$MODULES_DIR/update-$module_name"
+      
+      # Create modules directory if it doesn't exist
+      sudo mkdir -p "$MODULES_DIR"
+      
+      sudo cp "$module" "$module_dest"
+      sudo chmod +x "$module_dest"
+      
+      local version=$(grep -oP '^#\s*Version:\s*\K[\d.]+' "$module" 2>/dev/null || echo "unknown")
+      log_success "Installed: $module_name (v$version)"
+    fi
+  done
   
   # Cleanup
   rm -rf "$temp_dir"
   
+  echo
   log_success "Orion updated successfully!"
   echo
-  log_info "Run 'orion -l' to see updated modules"
+  log_info "Run 'orion -l' to see all modules"
 }
 
 show_help() {
@@ -335,7 +366,7 @@ EOF
 show_version() {
   echo "Orion Package Manager v2.3"
   echo "Installation: $INSTALL_DIR"
-  echo "Modules: $(find "$MODULES_DIR" -name 'update-*' | wc -l)"
+  echo "Modules: $(find "$MODULES_DIR" -name 'update-*' 2>/dev/null | wc -l)"
 }
 
 # -------------------------
