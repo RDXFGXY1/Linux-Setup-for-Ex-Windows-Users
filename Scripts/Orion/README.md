@@ -1,22 +1,22 @@
-# `pkgup` - A Simple, Modular Package Updater
+# `orion` - A Simple, Modular Package Updater
 
-`pkgup` is a command-line tool for updating self-contained applications that don't come from your system's main package manager (e.g., applications installed from `.tar.gz` files).
+`orion` is a command-line tool for updating self-contained applications that don't come from your system's main package manager (e.g., applications installed from `.tar.gz` files).
 
 It uses a modular architecture, where each application has its own update script.
 
 ## Installation
 
-To install `pkgup`, run the `install.sh` script:
+To install `orion`, run the folloing command:
 
 ```bash
-sudo ./install.sh
+curl -fsSL https://raw.githubusercontent.com/RDXFGXY1/Linux-Setup-for-Ex-Windows-Users/main/Scripts/Orion/install.sh | bash
 ```
 
-This will install the `pkgup` command to `/usr/local/bin/pkgup` and its modules to `/usr/local/lib/pkgup/modules`.
+This will install the `orion` command to `/usr/local/bin/orion` and its modules to `/usr/local/lib/orion/modules`.
 
 ## Uninstallation
 
-To uninstall `pkgup`, run the `uninstall.sh` script:
+To uninstall `orion`, run the `uninstall.sh` script:
 
 ```bash
 sudo ./uninstall.sh
@@ -26,10 +26,10 @@ sudo ./uninstall.sh
 
 ### List Available Packages
 
-To see which applications can be updated with `pkgup`, use the `-l` or `--list` flag:
+To see which applications can be updated with `orion`, use the `-l` or `--list` flag:
 
 ```bash
-pkgup -l
+orion -l
 ```
 
 ### Update a Package
@@ -37,12 +37,12 @@ pkgup -l
 To update a specific package, use the `-u` or `--update` flag, followed by the package name:
 
 ```bash
-pkgup -u discord
+orion -u discord
 ```
 
 ## How it Works
 
-The `pkgup` command is a simple dispatcher. When you run `pkgup -u <package>`, it looks for an executable script named `update-<package>` in the `/usr/local/lib/pkgup/modules` directory.
+The `orion` command is a simple dispatcher. When you run `orion -u <package>`, it looks for an executable script named `<package>` in the `/usr/local/lib/orion/modules` directory.
 
 If it finds the script, it executes it.
 
@@ -74,16 +74,16 @@ The Discord module has been enhanced with intelligent distribution detection and
 
 ```bash
 # Install or update Discord with automatic distribution detection
-pkgup -u discord
+orion -u discord
 
 # Skip confirmation prompts (useful for scripts/automation)
-pkgup -u discord --yes
+orion -u discord --yes
 
 # Force tarball installation (bypass package managers)
-pkgup -u discord -t
+orion -u discord -t
 
 # Force tarball installation without confirmation
-pkgup -u discord -t -y
+orion -u discord -t -y
 ```
 
 **Forced Tarball Installation:**
@@ -111,7 +111,7 @@ orion -u discord -t -y               # Tarball method without confirmation
 # 1. Detect Debian-based system
 # 2. Download Discord .deb package
 # 3. Install with dpkg and fix dependencies with apt-get
-pkgup -u discord
+orion -u discord
 ```
 
 *Fedora/RHEL:*
@@ -121,7 +121,7 @@ pkgup -u discord
 # 1. Detect Fedora-based system
 # 2. Download Discord .rpm package
 # 3. Install with dnf (or yum on older systems)
-pkgup -u discord
+orion -u discord
 ```
 
 *Arch/Manjaro:*
@@ -131,7 +131,7 @@ pkgup -u discord
 # 1. Detect Arch-based system
 # 2. Check for AUR helper (yay or paru)
 # 3. Install from AUR with full dependency resolution
-pkgup -u discord
+orion -u discord
 ```
 
 *openSUSE:*
@@ -141,7 +141,7 @@ pkgup -u discord
 # 1. Detect openSUSE-based system
 # 2. Download Discord .rpm package
 # 3. Install with zypper
-pkgup -u discord
+orion -u discord
 ```
 
 **Troubleshooting:**
@@ -178,9 +178,9 @@ Installation logs are saved to `/var/log/update-discord.log` for debugging and r
 
 ## Creating New Update Modules
 
-You can easily extend `pkgup` to update other applications. For multi-distro support, follow the pattern used in the Discord module:
+You can easily extend `orion` to update other applications. For multi-distro support, follow the pattern used in the Discord module:
 
-1. **Create a new script** in `/usr/local/lib/pkgup/modules` with the name `update-<appname>`.
+1. **Create a new script** in `/usr/local/lib/orion/modules` with the name `<appname>`.
 
 2. **Add distribution detection:**
 
@@ -203,7 +203,7 @@ You can easily extend `pkgup` to update other applications. For multi-distro sup
 5. **Make the script executable:**
 
    ```bash
-   sudo chmod +x /usr/local/lib/pkgup/modules/update-<appname>
+   sudo chmod +x /usr/local/lib/orion/modules/<appname>
    ```
 
-Now you can run `pkgup -u <appname>` to update your application with automatic multi-distro support.
+Now you can run `orion -u <appname>` to update your application with automatic multi-distro support.
