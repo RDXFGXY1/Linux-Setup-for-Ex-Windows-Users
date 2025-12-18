@@ -16,7 +16,7 @@ COMMAND_NAME="orion"
 
 # GitHub update
 GITHUB_USER="RDXFGXY1"
-GITHUB_REPO="Linux-Setup-for-Ex-Windows-Users"
+GITHUB_REPO="Linux-for-Windows-Refugees"
 GITHUB_BRANCH="main"
 GITHUB_PATH="Scripts/Orion"
 
@@ -46,7 +46,7 @@ main() {
     local bypass="false"
     local tarball_mode="false"
     
-    # Check for special rollback command
+    # Special case: rollback command
     if [ "${1:-}" = "rollback" ] || [ "${1:-}" = "--rollback" ]; then
         shift
         rollback_action "$@"

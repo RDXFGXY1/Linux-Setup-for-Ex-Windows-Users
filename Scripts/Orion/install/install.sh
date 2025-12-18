@@ -96,11 +96,11 @@ install_orion_files() {
     log_info "Installing Orion core files..."
     
     # Install main script
-    local main_src="$SCRIPT_DIR/orion.sh"
+    local main_src="$SCRIPT_DIR/orion"
     local main_dest="$BIN_DIR/$COMMAND_NAME"
     
     if [ ! -f "$main_src" ]; then
-        log_error "Main orion.sh not found: $main_src"
+        log_error "Main orion not found: $main_src"
         return 1
     fi
     
