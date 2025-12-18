@@ -1,0 +1,763 @@
+#!/usr/bin/env bash
+# ============================================
+#   DISCORD AUTO-UPDATER
+#   Author: RDXFGXY1
+#   Version: 3.1
+#   Description: Discord updater with multi-distro support and forced tarball mode (Debian, Fedora, Arch, SUSE)
+#   Usage: update-discord [--yes|-y]
+# ============================================
+
+# Parse arguments FIRST (before set -u)
+SKIP_CONFIRM=false
+if [ $# -gt 0 ]; then
+  if [ "$1" = "--yes" ] || [ "$1" = "-y" ]; then
+    SKIP_CONFIRM=true
+  fi
+fi
+
+# Now enable strict mode
+set -euo pipefail
+IFS=$'\n\t'
+
+# Configuration
+INSTALL_DIR="/opt/discord"
+TMPDIR="$(mktemp -d -t discord-update.XXXXXX)"
+DESKTOP_FILE="/usr/share/applications/discord.desktop"
+LOGFILE="/var/log/update-discord.log"
+VERSION_FILE="/opt/discord/resources/build_info.json"
+STATE_DIR="/usr/local/lib/orion/state"
+INSTALL_METHOD_FILE="$STATE_DIR/discord.method"
+
+# Multi-distro support variables
+DETECTED_DISTRO=""
+INSTALL_METHOD="tarball"
+PACKAGE_NAME=""
+
+# Colors
+ESC='\033['
+RESET="${ESC}0m"
+BOLD="${ESC}1m"
+RED="${ESC}31m"; GREEN="${ESC}32m"; YELLOW="${ESC}33m"; BLUE="${ESC}34m"
+MAG="${ESC}35m"; CYAN="${ESC}36m"; WHITE="${ESC}37m"
+
+# Rainbow helper
+rainbow() {
+  local text="$1"
+  local i=0
+  local colors=("${RED}" "${YELLOW}" "${GREEN}" "${CYAN}" "${BLUE}" "${MAG}")
+  local out=""
+  for ((i=0; i<${#text}; i++)); do
+    local c="${text:i:1}"
+    out+="${colors[$((i % ${#colors[@]}))]}${c}"
+  done
+  echo -e "${out}${RESET}"
+}
+
+log() {
+  echo -e "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOGFILE"
+}
+
+# Distribution Detection Function
+detect_distro() {
+  if [ -f /etc/os-release ]; then
+    source /etc/os-release
+    
+    # Check ID field first
+    if [ -n "${ID:-}" ]; then
+      case "$ID" in
+        debian|ubuntu)
+          DETECTED_DISTRO="debian"
+          ;;
+        fedora|rhel|centos|rocky|almalinux)
+          DETECTED_DISTRO="fedora"
+          ;;
+        arch|manjaro|artix)
+          DETECTED_DISTRO="arch"
+          ;;
+        opensuse|opensuse-leap|opensuse-tumbleweed|suse|sles)
+          DETECTED_DISTRO="suse"
+          ;;
+        *)
+          # Check ID_LIKE as fallback
+          if [ -n "${ID_LIKE:-}" ]; then
+            case "$ID_LIKE" in
+              *debian*)
+                DETECTED_DISTRO="debian"
+                ;;
+              *fedora*)
+                DETECTED_DISTRO="fedora"
+                ;;
+              *arch*)
+                DETECTED_DISTRO="arch"
+                ;;
+              *suse*)
+                DETECTED_DISTRO="suse"
+                ;;
+              *)
+                DETECTED_DISTRO="unknown"
+                ;;
+            esac
+          else
+            DETECTED_DISTRO="unknown"
+          fi
+          ;;
+      esac
+    else
+      DETECTED_DISTRO="unknown"
+    fi
+  else
+    DETECTED_DISTRO="unknown"
+  fi
+  
+  echo "$DETECTED_DISTRO"
+}
+
+# Dependency Checking
+check_dependencies() {
+  log "Checking dependencies for detected distro: $DETECTED_DISTRO"
+  
+  case "$DETECTED_DISTRO" in
+    debian)
+      if ! command -v dpkg >/dev/null 2>&1; then
+        echo -e "${RED}Error: dpkg is not installed. This is required for Debian-based systems.${RESET}"
+        log "Missing dpkg"
+        return 1
+      fi
+      ;;
+    fedora)
+      if ! command -v dnf >/dev/null 2>&1 && ! command -v yum >/dev/null 2>&1; then
+        echo -e "${RED}Error: dnf or yum is not installed. This is required for Fedora-based systems.${RESET}"
+        log "Missing dnf/yum"
+        return 1
+      fi
+      ;;
+    arch)
+      if ! command -v pacman >/dev/null 2>&1; then
+        echo -e "${RED}Error: pacman is not installed. This is required for Arch-based systems.${RESET}"
+        log "Missing pacman"
+        return 1
+      fi
+      ;;
+    suse)
+      if ! command -v zypper >/dev/null 2>&1; then
+        echo -e "${RED}Error: zypper is not installed. This is required for SUSE-based systems.${RESET}"
+        log "Missing zypper"
+        return 1
+      fi
+      ;;
+  esac
+  
+  return 0
+}
+
+cleanup() {
+  rm -rf "$TMPDIR"
+}
+trap 'cleanup; log "Interrupted. Exiting."; echo -e "\n${RED}Update aborted.${RESET}"; exit 1' INT TERM
+
+
+# ASCII Dragon
+print_dragon() {
+cat <<'DRAGON'
+                       ___====-_  _-====___
+                 _--^^^#####//      \\#####^^^--_
+              _-^##########// (    ) \\##########^-_
+             -############//  |\^^/|  \\############-
+           _/############//   (@::@)   \\############\_
+          /#############((     \\//     ))#############\
+         -###############\\    (oo)    //###############-
+        -#################\\  / VV \  //#################-
+       -###################\\/      \//###################-
+      _#/|##########/\######(   /\   )######/\##########|\#_
+      |/ |#/\#/\#/\/  \#/\##\  /  \  /##/\#/  \/\#/\#/\#| \|
+      `  |/  V  V  `   V  \\#\/\/\/\/#/  V   '  V  V  \|  '
+         `   `  `      `   /  /    \  \   '      '  '   '
+DRAGON
+}
+
+# Anime quotes
+quotes=(
+  "People's lives don't end when they die, it ends when they lose faith. - Itachi Uchiha"
+  "Whatever you lose, you'll find it again. But what you throw away forever stays that way. - Kenshin Himura"
+  "It's not the face that makes someone a monster; it's the choices they make with their lives. - Naruto Uzumaki"
+  "To know sorrow is not terrifying. What is terrifying is to know you can't go back to happiness you could have. - Matsumoto Rangiku"
+  "If you don't take risks, you can't create a future. - Monkey D. Luffy"
+)
+
+rand_quote() {
+  local i=$((RANDOM % ${#quotes[@]}))
+  echo "${quotes[$i]}"
+}
+
+# Spinner
+spinner() {
+  local pid="$1"
+  local msg="$2"
+  local delay=0.08
+  while kill -0 "$pid" 2>/dev/null; do
+    printf "\r| %s" "$msg"
+    sleep "$delay"
+    printf "\r/ %s" "$msg"
+    sleep "$delay"
+    printf "\r- %s" "$msg"
+    sleep "$delay"
+    printf "\r\\ %s" "$msg"
+    sleep "$delay"
+  done
+  printf "\r"
+}
+
+# Progress bar
+progress_bar() {
+  local seconds="$1"
+  local msg="$2"
+  local i=0
+  printf "%s\n" "$msg"
+  while [ $i -le "$seconds" ]; do
+    local pct=$((i * 100 / seconds))
+    local done=$((pct / 4))
+    local left=$((25 - done))
+    printf "\r["
+    
+    # Print filled blocks
+    local j=0
+    while [ $j -lt "$done" ]; do
+      printf "█"
+      j=$((j + 1))
+    done
+    
+    # Print empty blocks
+    j=0
+    while [ $j -lt "$left" ]; do
+      printf " "
+      j=$((j + 1))
+    done
+    
+    printf "] %3s%%" "$pct"
+    i=$((i + 1))
+    sleep 0.08
+  done
+  printf "\n"
+}
+
+# System info
+print_sysinfo() {
+  local host
+  local os
+  local kernel
+  local uptime
+  local shell
+  local mem
+  local distro_display
+  
+  host="$(hostnamectl --static 2>/dev/null || hostname)"
+  os="$(grep '^PRETTY_NAME' /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '\"' || echo "Linux")"
+  kernel="$(uname -r)"
+  uptime="$(uptime -p 2>/dev/null | sed 's/up //' || echo "unknown")"
+  shell="$(basename "$SHELL")"
+  mem="$(free -h 2>/dev/null | awk '/Mem:/ {print $3 " / " $2}' || echo "unknown")"
+  
+  # Display detected distribution
+  case "$DETECTED_DISTRO" in
+    debian)
+      distro_display="${GREEN}Debian-based${RESET}"
+      ;;
+    fedora)
+      distro_display="${BLUE}Fedora-based${RESET}"
+      ;;
+    arch)
+      distro_display="${CYAN}Arch-based${RESET}"
+      ;;
+    suse)
+      distro_display="${YELLOW}SUSE-based${RESET}"
+      ;;
+    *)
+      distro_display="${MAG}Unknown${RESET}"
+      ;;
+  esac
+  
+  echo -e "${CYAN}┌────────────────────────────────────────────────────┐${RESET}"
+  echo -e " ${BOLD}Host:${RESET} $host    ${BOLD}OS:${RESET} $os"
+  echo -e " ${BOLD}Kernel:${RESET} $kernel    ${BOLD}Uptime:${RESET} $uptime"
+  echo -e " ${BOLD}Shell:${RESET} $shell    ${BOLD}Memory:${RESET} $mem"
+  echo -e " ${BOLD}Distro Family:${RESET} $distro_display"
+  echo -e "${CYAN}└────────────────────────────────────────────────────┘${RESET}"
+}
+
+# Check requirements
+check_requirements() {
+  log "Checking requirements..."
+  if command -v wget >/dev/null 2>&1; then
+    DL_CMD="wget"
+  elif command -v curl >/dev/null 2>&1; then
+    DL_CMD="curl"
+  else
+    echo -e "${RED}Error: neither wget nor curl is installed.${RESET}"
+    exit 1
+  fi
+  return 0
+}
+
+# Get current installed version
+get_current_version() {
+  local version="not installed"
+  
+  # Try package manager specific version detection
+  case "$DETECTED_DISTRO" in
+    debian)
+      if command -v dpkg >/dev/null 2>&1; then
+        version=$(dpkg -l discord 2>/dev/null | awk '/^ii/ {print $3}' || echo "not installed")
+      fi
+      ;;
+    fedora)
+      if command -v rpm >/dev/null 2>&1; then
+        version=$(rpm -q discord --queryformat='%{VERSION}' 2>/dev/null || echo "not installed")
+      fi
+      ;;
+    arch)
+      if command -v pacman >/dev/null 2>&1; then
+        version=$(pacman -Q discord 2>/dev/null | awk '{print $2}' || echo "not installed")
+      fi
+      ;;
+    suse)
+      if command -v zypper >/dev/null 2>&1; then
+        version=$(zypper info discord 2>/dev/null | grep Version | awk '{print $NF}' || echo "not installed")
+      fi
+      ;;
+  esac
+  
+  # Fallback to tarball version detection
+  if [ "$version" = "not installed" ] && [ -f "$VERSION_FILE" ]; then
+    version=$(grep -oP '"version"\s*:\s*"\K[^"]+' "$VERSION_FILE" 2>/dev/null || echo "not installed")
+  fi
+  
+  # Try Flatpak version detection as last resort
+  if [ "$version" = "not installed" ] && command -v flatpak >/dev/null 2>&1; then
+    version=$(flatpak info com.discordapp.Discord 2>/dev/null | grep Version | awk '{print $NF}' || echo "not installed")
+  fi
+  
+  echo "$version"
+}
+
+# Get latest available version from Discord (quick check)
+get_latest_version() {
+  local temp_dir
+  temp_dir=$(mktemp -d)
+  local version="unknown"
+  
+  # Try to extract just the version file (lightweight check)
+  if curl -sL "https://discord.com/api/download?platform=linux&format=tar.gz" 2>/dev/null | \
+     tar -xz -C "$temp_dir" "Discord/resources/build_info.json" 2>/dev/null; then
+    version=$(grep -oP '"version"\s*:\s*"\K[^"]+' "$temp_dir/Discord/resources/build_info.json" 2>/dev/null || echo "unknown")
+  fi
+  
+  rm -rf "$temp_dir"
+  echo "$version"
+}
+
+# Distribution-specific Installation Functions
+
+install_discord_debian() {
+  log "Installing Discord via Debian package manager..."
+  echo -e "${CYAN}[Debian] Installing Discord...${RESET}"
+  
+  # Try to download .deb package
+  local deb_file="$TMPDIR/discord.deb"
+  echo -e "${YELLOW}Downloading Discord .deb package...${RESET}"
+  
+  if [ "$DL_CMD" = "wget" ]; then
+    wget -q --show-progress "https://discord.com/api/download?platform=linux&format=deb" -O "$deb_file" || return 1
+  else
+    curl -L --progress-bar -o "$deb_file" "https://discord.com/api/download?platform=linux&format=deb" || return 1
+  fi
+  
+  echo -e "${YELLOW}Installing package...${RESET}"
+  sudo dpkg -i "$deb_file" || {
+    echo -e "${YELLOW}Fixing dependencies...${RESET}"
+    sudo apt-get install -f -y || return 1
+  }
+  
+  echo -e "${GREEN}✓ Debian installation complete${RESET}"
+  log "Discord installed via dpkg"
+  INSTALL_METHOD="debian-dpkg"
+  return 0
+}
+
+install_discord_fedora() {
+  log "Installing Discord via Fedora package manager..."
+  echo -e "${CYAN}[Fedora] Installing Discord...${RESET}"
+  
+  # Try to download .rpm package
+  local rpm_file="$TMPDIR/discord.rpm"
+  echo -e "${YELLOW}Downloading Discord .rpm package...${RESET}"
+  
+  if [ "$DL_CMD" = "wget" ]; then
+    wget -q --show-progress "https://discord.com/api/download?platform=linux&format=rpm" -O "$rpm_file" || return 1
+  else
+    curl -L --progress-bar -o "$rpm_file" "https://discord.com/api/download?platform=linux&format=rpm" || return 1
+  fi
+  
+  echo -e "${YELLOW}Installing package...${RESET}"
+  local dnf_cmd
+  if command -v dnf >/dev/null 2>&1; then
+    dnf_cmd="sudo dnf"
+  else
+    dnf_cmd="sudo yum"
+  fi
+  $dnf_cmd install -y "$rpm_file" || return 1
+  
+  echo -e "${GREEN}✓ Fedora installation complete${RESET}"
+  log "Discord installed via dnf/yum"
+  INSTALL_METHOD="fedora-dnf"
+  return 0
+}
+
+install_discord_arch() {
+  log "Installing Discord via Arch package manager..."
+  echo -e "${CYAN}[Arch] Installing Discord...${RESET}"
+  
+  local aur_helper=""
+  
+  # Check for AUR helper
+  if command -v yay >/dev/null 2>&1; then
+    aur_helper="yay"
+  elif command -v paru >/dev/null 2>&1; then
+    aur_helper="paru"
+  fi
+  
+  if [ -n "$aur_helper" ]; then
+    echo -e "${YELLOW}Using AUR helper: $aur_helper${RESET}"
+    echo -e "${YELLOW}Installing Discord from AUR...${RESET}"
+    $aur_helper -S --noconfirm discord || return 1
+    echo -e "${GREEN}✓ Arch AUR installation complete${RESET}"
+    log "Discord installed via $aur_helper AUR"
+    INSTALL_METHOD="arch-aur"
+    return 0
+  else
+    echo -e "${YELLOW}No AUR helper found (yay/paru). Falling back to tarball...${RESET}"
+    log "No AUR helper available, falling back to tarball"
+    return 1
+  fi
+}
+
+install_discord_suse() {
+  log "Installing Discord via SUSE package manager..."
+  echo -e "${CYAN}[SUSE] Installing Discord...${RESET}"
+  
+  # Try to download .rpm package
+  local rpm_file="$TMPDIR/discord.rpm"
+  echo -e "${YELLOW}Downloading Discord .rpm package...${RESET}"
+  
+  if [ "$DL_CMD" = "wget" ]; then
+    wget -q --show-progress "https://discord.com/api/download?platform=linux&format=rpm" -O "$rpm_file" || return 1
+  else
+    curl -L --progress-bar -o "$rpm_file" "https://discord.com/api/download?platform=linux&format=rpm" || return 1
+  fi
+  
+  echo -e "${YELLOW}Installing package...${RESET}"
+  sudo zypper install -y "$rpm_file" || return 1
+  
+  echo -e "${GREEN}✓ SUSE installation complete${RESET}"
+  log "Discord installed via zypper"
+  INSTALL_METHOD="suse-zypper"
+  return 0
+}
+
+install_discord_flatpak() {
+  log "Installing Discord via Flatpak..."
+  echo -e "${CYAN}[Flatpak] Installing Discord...${RESET}"
+  
+  if ! command -v flatpak >/dev/null 2>&1; then
+    echo -e "${RED}Flatpak is not installed.${RESET}"
+    log "Flatpak not available"
+    return 1
+  fi
+  
+  echo -e "${YELLOW}Checking Flathub repository...${RESET}"
+  if ! flatpak remote-list | grep -q flathub; then
+    echo -e "${YELLOW}Adding Flathub repository...${RESET}"
+    flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo || return 1
+  fi
+  
+  echo -e "${YELLOW}Installing Discord from Flathub...${RESET}"
+  flatpak install -y flathub com.discordapp.Discord || return 1
+  
+  echo -e "${GREEN}✓ Flatpak installation complete${RESET}"
+  log "Discord installed via Flatpak"
+  INSTALL_METHOD="flatpak"
+  return 0
+}
+
+install_discord_tarball() {
+  log "Installing Discord via tarball method..."
+  echo -e "${CYAN}[Tarball] Installing Discord...${RESET}"
+  
+  log "Downloading latest Discord tarball to $TMPDIR"
+  echo -e "${YELLOW}Downloading latest Discord...${RESET}"
+  
+  # Download with proper command construction
+  (
+    if [ "$DL_CMD" = "wget" ]; then
+      wget -q --show-progress --progress=bar:force -O "$TMPDIR/discord.tar.gz" "https://discord.com/api/download?platform=linux&format=tar.gz"
+    else
+      curl -L --progress-bar -o "$TMPDIR/discord.tar.gz" "https://discord.com/api/download?platform=linux&format=tar.gz"
+    fi
+  ) & dlpid=$!
+
+  spinner "$dlpid" "Downloading..."
+  wait "$dlpid" || { echo -e "${RED}Download failed.${RESET}"; log "Download failed."; return 1; }
+  echo -e "${GREEN}Download complete.${RESET}"
+  log "Downloaded to $TMPDIR/discord.tar.gz"
+
+  echo -e "${YELLOW}Extracting files...${RESET}"
+  progress_bar 30 "Extracting (simulated progress bar)"
+  tar -xzf "$TMPDIR/discord.tar.gz" -C "$TMPDIR" || return 1
+  if [ ! -d "$TMPDIR/Discord" ]; then
+    echo -e "${RED}Extraction failed.${RESET}" && log "Extraction failed." && return 1
+  fi
+  log "Extraction OK."
+
+  echo -e "${YELLOW}Removing old installation (if any)...${RESET}"
+  progress_bar 12 "Cleaning old installs"
+  sudo rm -rf "$INSTALL_DIR" "${INSTALL_DIR}"* || true
+  log "Old installation removed."
+
+  echo -e "${YELLOW}Installing new version to ${INSTALL_DIR}...${RESET}"
+  sudo mv "$TMPDIR/Discord" "$INSTALL_DIR" || return 1
+  sudo chown -R root:root "$INSTALL_DIR" || true
+  sudo chmod -R 755 "$INSTALL_DIR" || true
+  log "Moved new Discord to $INSTALL_DIR"
+
+  echo -e "${YELLOW}Creating launcher and symlink...${RESET}"
+  sudo ln -sf "$INSTALL_DIR/Discord" /usr/bin/discord
+  sudo tee "$DESKTOP_FILE" >/dev/null <<EOF
+[Desktop Entry]
+Name=Discord
+Comment=Chat for Communities and Friends
+Exec=/usr/bin/discord
+Icon=$INSTALL_DIR/discord.png
+Terminal=false
+Type=Application
+Categories=Network;Chat;
+EOF
+  sudo chmod 644 "$DESKTOP_FILE"
+  log "Symlink and desktop file created."
+  
+  echo -e "${GREEN}✓ Tarball installation complete${RESET}"
+  log "Discord installed via tarball"
+  INSTALL_METHOD="tarball"
+  return 0
+}
+
+# Ask for confirmation
+confirm_action() {
+  local prompt="$1"
+  if [ "$SKIP_CONFIRM" = true ]; then
+    return 0
+  fi
+  
+  echo -e "${YELLOW}${prompt}${RESET}"
+  read -p "Continue? [y/N] " -n 1 -r
+  echo
+  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    log "User cancelled operation"
+    echo -e "${YELLOW}Operation cancelled.${RESET}"
+    cleanup
+    exit 0
+  fi
+}
+
+# Main
+main() {
+  mkdir -p "$(dirname "$LOGFILE")"
+  mkdir -p "$STATE_DIR"
+  log "Starting Discord updater (v3.0 - Multi-distro)."
+  clear
+  print_dragon
+  echo
+  echo -e "$(rainbow " ██████  ██ ██████  ██████  ██████   ██████")"
+  echo -e "$(rainbow "Updating Discord — GARUDA ASIAN DRAGON EDITION")"
+  echo
+
+  # Detect distribution
+  echo -e "${CYAN}Detecting Linux distribution...${RESET}"
+  detect_distro
+  echo -e "${CYAN}Detected distribution family:${RESET} ${BOLD}$DETECTED_DISTRO${RESET}"
+  echo
+
+  print_sysinfo
+  echo
+  echo -e "${MAG}Quote:${RESET} \"$(rand_quote)\""
+  echo
+
+  # Check requirements
+  check_requirements
+  
+  # Check dependencies for detected distro
+  if ! check_dependencies; then
+    echo -e "${YELLOW}Falling back to tarball installation...${RESET}"
+    DETECTED_DISTRO="unknown"
+  fi
+
+  # Check current version
+  local current_version
+  current_version=$(get_current_version)
+  echo -e "${CYAN}Current Discord version:${RESET} ${BOLD}$current_version${RESET}"
+  
+  # Check latest version available
+  echo -e "${CYAN}Checking latest version...${RESET}"
+  local latest_version
+  latest_version=$(get_latest_version)
+  echo -e "${CYAN}Latest Discord version:${RESET} ${BOLD}$latest_version${RESET}"
+  echo
+  
+  # Compare versions
+  if [ "$current_version" = "$latest_version" ] && [ "$latest_version" != "unknown" ] && [ "$current_version" != "not installed" ]; then
+    echo -e "${GREEN}✓ Discord is already up to date!${RESET}"
+    echo -e "${CYAN}You have the latest version: ${BOLD}$current_version${RESET}"
+    confirm_action "Do you want to reinstall anyway?"
+  elif [ "$current_version" = "not installed" ]; then
+    echo -e "${YELLOW}Discord is not installed yet.${RESET}"
+    confirm_action "Proceed with fresh installation?"
+  else
+    echo -e "${YELLOW}→ Update available: ${BOLD}$current_version${RESET} ${YELLOW}→${RESET} ${GREEN}${BOLD}$latest_version${RESET}"
+    confirm_action "Proceed with update?"
+  fi
+
+  echo -ne "${CYAN}Checking connectivity to discord.com...${RESET} "
+  if curl -sSfI https://discord.com >/dev/null 2>&1; then
+    echo -e "${GREEN}OK${RESET}"
+  else
+    echo -e "${RED}Failed${RESET} — network or DNS problem."
+    log "Network check failed."
+    exit 1
+  fi
+
+  # Route to appropriate installation method based on detected distro
+  echo
+  echo -e "${YELLOW}Installing Discord...${RESET}"
+  local install_success=false
+  
+  # Check if forced tarball installation is requested
+  if [ "${ORION_FORCE_TARBALL:-false}" = "true" ]; then
+    log "Forced tarball installation requested via ORION_FORCE_TARBALL"
+    echo -e "${CYAN}[Tarball] Installing Discord via tarball (forced mode)...${RESET}"
+    if install_discord_tarball; then
+      install_success=true
+      INSTALL_METHOD="tarball-forced"
+    fi
+  else
+    # Standard multi-method installation with fallback chain
+    case "$DETECTED_DISTRO" in
+      debian)
+        if install_discord_debian; then
+          install_success=true
+        else
+          echo -e "${YELLOW}Debian package installation failed, trying Flatpak fallback...${RESET}"
+          if install_discord_flatpak; then
+            install_success=true
+          else
+            echo -e "${YELLOW}Flatpak installation failed, trying tarball fallback...${RESET}"
+            if install_discord_tarball; then
+              install_success=true
+            fi
+          fi
+        fi
+        ;;
+      fedora)
+        if install_discord_fedora; then
+          install_success=true
+        else
+          echo -e "${YELLOW}Fedora package installation failed, trying Flatpak fallback...${RESET}"
+          if install_discord_flatpak; then
+            install_success=true
+          else
+            echo -e "${YELLOW}Flatpak installation failed, trying tarball fallback...${RESET}"
+            if install_discord_tarball; then
+              install_success=true
+            fi
+          fi
+        fi
+        ;;
+      arch)
+        if install_discord_arch; then
+          install_success=true
+        else
+          echo -e "${YELLOW}Arch/AUR installation failed, trying Flatpak fallback...${RESET}"
+          if install_discord_flatpak; then
+            install_success=true
+          else
+            echo -e "${YELLOW}Flatpak installation failed, trying tarball fallback...${RESET}"
+            if install_discord_tarball; then
+              install_success=true
+            fi
+          fi
+        fi
+        ;;
+      suse)
+        if install_discord_suse; then
+          install_success=true
+        else
+          echo -e "${YELLOW}SUSE package installation failed, trying Flatpak fallback...${RESET}"
+          if install_discord_flatpak; then
+            install_success=true
+          else
+            echo -e "${YELLOW}Flatpak installation failed, trying tarball fallback...${RESET}"
+            if install_discord_tarball; then
+              install_success=true
+            fi
+          fi
+        fi
+        ;;
+      *)
+        # Unknown distro - try Flatpak first, then tarball
+        echo -e "${YELLOW}Unknown distribution detected, trying Flatpak...${RESET}"
+        if install_discord_flatpak; then
+          install_success=true
+        else
+          echo -e "${YELLOW}Flatpak installation failed, trying tarball fallback...${RESET}"
+          if install_discord_tarball; then
+            install_success=true
+          fi
+        fi
+        ;;
+    esac
+  fi
+  
+  if [ "$install_success" = false ]; then
+    echo -e "${RED}${BOLD}Installation failed.${RESET}"
+    log "Installation failed for all methods"
+    exit 1
+  fi
+
+  # Get installed version after installation
+  echo -e "${YELLOW}Verifying installation...${RESET}"
+  progress_bar 10 "Verifying"
+  local installed_version
+  installed_version=$(get_current_version)
+  
+  # Save installation method
+  echo "$INSTALL_METHOD" | sudo tee "$INSTALL_METHOD_FILE" >/dev/null 2>&1 || true
+  log "Installation method saved: $INSTALL_METHOD"
+
+  echo
+  print_dragon
+  echo -e "${GREEN}${BOLD}🎉 Discord was installed/updated successfully!${RESET}"
+  echo -e "${CYAN}Installed version:${RESET} ${BOLD}$installed_version${RESET}"
+  echo -e "${CYAN}Installation method:${RESET} ${BOLD}$INSTALL_METHOD${RESET}"
+  echo -e "${CYAN}Run:${RESET} ${BOLD}discord${RESET} or launch from your apps menu."
+  log "Installation complete. Version: $installed_version | Method: $INSTALL_METHOD"
+
+  cat <<'CELEB'
+                 \  ^__^
+                  \ (•ㅅ•)
+                    /   \
+                   (     )
+                    `---'
+CELEB
+
+  cleanup
+}
+
+check_requirements
+main

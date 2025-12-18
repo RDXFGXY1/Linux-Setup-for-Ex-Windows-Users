@@ -3,7 +3,7 @@
 #   ORION LOCAL INSTALLER
 #   Installs Orion from local files
 #   Author: Ayoub (RDXFGXY1)
-#   Version: 2.3
+#   Version: 2.2
 # ============================================
 set -euo pipefail
 
@@ -55,10 +55,6 @@ log_success() {
   echo -e "${GREEN}[✓]${RESET} $*"
 }
 
-log_warning() {
-  echo -e "${YELLOW}[!]${RESET} $*"
-}
-
 log_error() {
   echo -e "${RED}[✗]${RESET} $*"
 }
@@ -85,70 +81,27 @@ create_directories() {
   
   sudo mkdir -p "$INSTALL_DIR/$MODULES_DIR"
   sudo mkdir -p "$INSTALL_DIR/logs"
-  sudo mkdir -p "$INSTALL_DIR/lib"
-  sudo mkdir -p "$INSTALL_DIR/actions"
-  sudo mkdir -p "$INSTALL_DIR/rollback"
   
   log_success "Directories created at $INSTALL_DIR"
 }
 
-install_orion_files() {
-    log_info "Installing Orion core files..."
-    
-    # Install main script
-    local main_src="$SCRIPT_DIR/orion.sh"
-    local main_dest="$BIN_DIR/$COMMAND_NAME"
-    
-    if [ ! -f "$main_src" ]; then
-        log_error "Main orion.sh not found: $main_src"
-        return 1
-    fi
-    
-    # Create a temporary copy with corrected paths
-    local temp_script="/tmp/orion_install_$(date +%s).sh"
-    cp "$main_src" "$temp_script"
-    
-    # Fix the paths in the temporary script
-    sed -i "s|SCRIPT_DIR=\"\$(cd \"\$(dirname \"\${BASH_SOURCE\[0\]}\")\" && pwd)\"|# Paths set by installer\nINSTALL_DIR=\"$INSTALL_DIR\"|g" "$temp_script"
-    sed -i "s|source \"\$SCRIPT_DIR/lib/|source \"\$INSTALL_DIR/lib/|g" "$temp_script"
-    sed -i "s|source \"\$SCRIPT_DIR/actions/|source \"\$INSTALL_DIR/actions/|g" "$temp_script"
-    
-    # Install the modified script
-    sudo cp "$temp_script" "$main_dest"
-    sudo chmod +x "$main_dest"
-    
-    # Cleanup
-    rm -f "$temp_script"
-    
-    log_success "Main command installed: $COMMAND_NAME"
-    
-    # Install lib files
-    if [ -d "$SCRIPT_DIR/lib" ]; then
-        for lib_file in "$SCRIPT_DIR/lib"/*.sh; do
-            if [ -f "$lib_file" ]; then
-                local lib_name=$(basename "$lib_file")
-                sudo cp "$lib_file" "$INSTALL_DIR/lib/$lib_name"
-                log_success "Installed lib: $lib_name"
-            fi
-        done
-    else
-        log_warning "Lib directory not found: $SCRIPT_DIR/lib"
-    fi
-    
-    # Install action files
-    if [ -d "$SCRIPT_DIR/actions" ]; then
-        for action_file in "$SCRIPT_DIR/actions"/*.sh; do
-            if [ -f "$action_file" ]; then
-                local action_name=$(basename "$action_file")
-                sudo cp "$action_file" "$INSTALL_DIR/actions/$action_name"
-                log_success "Installed action: $action_name"
-            fi
-        done
-    else
-        log_warning "Actions directory not found: $SCRIPT_DIR/actions"
-    fi
-    
-    return 0
+install_main_command() {
+  log_info "Installing main command..."
+  
+  local src_file="$SCRIPT_DIR/orion"
+  local dest_file="$BIN_DIR/$COMMAND_NAME"
+  
+  if [ ! -f "$src_file" ]; then
+    log_error "Main command file not found: $src_file"
+    log_info "Looking in: $SCRIPT_DIR"
+    return 1
+  fi
+  
+  sudo cp "$src_file" "$dest_file"
+  sudo chmod +x "$dest_file"
+  
+  log_success "Main command installed: $COMMAND_NAME"
+  return 0
 }
 
 install_modules() {
@@ -229,26 +182,6 @@ verify_installation() {
     log_success "Main command verified: $BIN_DIR/$COMMAND_NAME"
   fi
   
-  # Check lib files
-  local lib_count
-  lib_count=$(find "$INSTALL_DIR/lib" -type f -name "*.sh" 2>/dev/null | wc -l)
-  
-  if [ "$lib_count" -eq 0 ]; then
-    log_warning "No library files found"
-  else
-    log_success "Found $lib_count library files"
-  fi
-  
-  # Check action files
-  local action_count
-  action_count=$(find "$INSTALL_DIR/actions" -type f -name "*.sh" 2>/dev/null | wc -l)
-  
-  if [ "$action_count" -eq 0 ]; then
-    log_warning "No action files found"
-  else
-    log_success "Found $action_count action files"
-  fi
-  
   # Check modules
   local module_count
   module_count=$(find "$INSTALL_DIR/$MODULES_DIR" -type f -executable 2>/dev/null | wc -l)
@@ -289,8 +222,6 @@ show_success() {
   
   echo -e "${CYAN}${BOLD}Installation Details:${RESET}"
   echo -e "  Command:        $BIN_DIR/$COMMAND_NAME"
-  echo -e "  Core files:     $INSTALL_DIR/lib/"
-  echo -e "  Actions:        $INSTALL_DIR/actions/"
   echo -e "  Modules:        $INSTALL_DIR/$MODULES_DIR/"
   echo -e "  Logs:           $INSTALL_DIR/logs/"
   
@@ -335,8 +266,8 @@ main() {
   create_directories
   echo
   
-  if ! install_orion_files; then
-    log_error "Failed to install Orion files"
+  if ! install_main_command; then
+    log_error "Failed to install main command"
     exit 1
   fi
   
