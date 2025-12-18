@@ -240,7 +240,7 @@ update_orion_self() {
   
   # Download main orion script
   log_info "Downloading main Orion script..."
-  local orion_url="https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/$GITHUB_PATH/orion"
+  local orion_url="https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/$GITHUB_BRANCH/$GITHUB_PATH/orion.sh"
   
   if curl -fsSL "$orion_url" -o "$temp_dir/orion" 2>/dev/null; then
     log_success "Downloaded main script"
