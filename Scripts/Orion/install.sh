@@ -82,7 +82,9 @@ download_specific_files() {
   local files=(
     "orion"
     "install/install.sh"
-    "modules/discord"
+    "actions"
+    "modules"
+    "lib"
     "README.md"
     "uninstall.sh"
   )
